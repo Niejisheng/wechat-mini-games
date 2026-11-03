@@ -1,0 +1,39 @@
+{
+  "description": "休闲益智小游戏（合集）",
+  "compileType": "game",
+  "libVersion": "3.7.3",
+  "appid": "wxcec52da0edbfda48",
+  "projectname": "leisure-puzzle-games",
+  "miniprogramRoot": "./",
+  "setting": {
+    "es6": true,
+    "minified": false,
+    "urlCheck": false,
+    "postcss": false,
+    "enhance": false,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "simulatorType": "wechat",
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "isGameTourist": false,
+  "editorSetting": {}
+}

@@ -11,7 +11,8 @@ ctx.scale(scale, scale)
 let screen = 'home'
 let gameMode = false
 let board = []
-let boardSize = 9
+const boardColumns = 9
+let boardRows = 9
 let mineCount = 10
 let boardX = 20
 let boardY = 150
@@ -34,8 +35,18 @@ let startPressAt = 0
 let startLongPress = false
 let collapseEffects = []
 let numberFeedback = null
+let revealEffects = []
+let revealAnimationRunning = false
+let failureSequence = null
+let failureAudioContext = null
 // 难度从低到高，左右箭头分别对应上一级和下一级
-const difficulties = ['容易', '中等', '标准', '困难', '极难']
+const difficulties = [
+  { name: '容易', rows: 9, mines: 10 },
+  { name: '中等', rows: 11, mines: 17 },
+  { name: '标准', rows: 13, mines: 25 },
+  { name: '困难', rows: 15, mines: 38 },
+  { name: '极难', rows: 17, mines: 54 }
+]
 const iconImages = {}
 ;['settings', 'shopping-cart', 'list', 'info-circle'].forEach((name) => {
   const image = wx.createImage()
@@ -162,11 +173,11 @@ function drawDifficultySelector() {
     const direction = difficultyTo > difficultyFrom ? 1 : -1
     const travel = Math.min(132, W * 0.36)
     ctx.save(); ctx.globalAlpha = 1 - outgoing
-    text(difficulties[difficultyFrom], W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
+    text(difficulties[difficultyFrom].name, W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
     ctx.globalAlpha = incoming
-    text(difficulties[difficultyTo], W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
+    text(difficulties[difficultyTo].name, W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
     ctx.restore()
-  } else text(difficulties[difficultyIndex], W / 2, y, 16, '#707174', 'center')
+  } else text(difficulties[difficultyIndex].name, W / 2, y, 16, '#707174', 'center')
   drawChevron(W - 72, y, 'right', pressedArrow === 'right')
 }
 
@@ -239,6 +250,7 @@ draw()
 
 wx.onTouchStart(event => {
   if (screen !== 'minesweeper') return
+  if (failureSequence) return
   const touch = event.touches[0]
   const { x, y } = touchPosition(touch)
   if (gameMode) {
@@ -255,9 +267,10 @@ wx.onTouchStart(event => {
     setTimeout(() => {
       const press = gamePress
       if (!press || press.at + 450 > Date.now() || press.flagged || gameStatus !== 'playing') return
-      if (press.row >= 0 && press.row < boardSize && press.col >= 0 && press.col < boardSize) {
+      if (press.row >= 0 && press.row < boardRows && press.col >= 0 && press.col < boardColumns) {
         const cell = board[press.row][press.col]
         if (!cell.open) {
+          if (!cell.flag && board.reduce((total, row) => total + row.filter(item => item.flag).length, 0) >= mineCount) return
           cell.flag = !cell.flag
           press.flagged = true
           flagAnimation = { r: press.row, c: press.col, fromX: press.x, fromY: press.y, at: Date.now() }
@@ -285,6 +298,7 @@ wx.onTouchStart(event => {
 })
 
 wx.onTouchEnd(event => {
+  if (failureSequence) return
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
   if (gameMode && gamePress) {
@@ -310,7 +324,7 @@ wx.onTouchEnd(event => {
       return
     }
     const col = Math.floor((press.x - boardX) / cellSize); const row = Math.floor((press.y - boardY) / cellSize)
-    if (row >= 0 && row < boardSize && col >= 0 && col < boardSize) {
+    if (row >= 0 && row < boardRows && col >= 0 && col < boardColumns) {
       const cell = board[row][col]
       if (!press.flagged && Date.now() - press.at < 450 && !cell.flag) revealCell(row, col)
       draw()
@@ -346,22 +360,22 @@ wx.onTouchEnd(event => {
 
 function revealCell(r, c) {
   if (gameStatus !== 'playing') return
+  const animation = arguments[2] || null
   const cell = board[r][c]
   if (cell.open) {
     // 只有数字格支持按周围旗子数量展开；已打开的空白格不响应。
     if (cell.number === 0) return
     const around = neighbors(r, c); const flags = around.filter(([nr, nc]) => board[nr][nc].flag).length
     if (flags === cell.number) {
-      around.forEach(([nr, nc]) => { if (!board[nr][nc].open && !board[nr][nc].flag) revealCell(nr, nc) })
+      const animation = { nextDelay: 0 }
+      around.forEach(([nr, nc]) => { if (!board[nr][nc].open && !board[nr][nc].flag) revealCell(nr, nc, animation) })
     } else {
       triggerCollapseEffect(r, c, around.filter(([nr, nc]) => !board[nr][nc].open && !board[nr][nc].flag))
     }
     return
   }
   if (cell.mine) {
-    cell.open = true
-    gameStatus = 'lost'
-    board.forEach(row => row.forEach(item => { if (item.mine) item.open = true }))
+    triggerFailureSequence(r, c)
     return
   }
   if (!gameStartedAt) {
@@ -369,12 +383,39 @@ function revealCell(r, c) {
     updateGameTimer()
   }
   cell.open = true
-  if (cell.number === 0) neighbors(r, c).forEach(([nr, nc]) => { if (!board[nr][nc].open) revealCell(nr, nc) })
+  if (animation) scheduleRevealEffect(r, c, animation)
+  if (cell.number === 0) {
+    const nextAnimation = animation || { nextDelay: 0 }
+    if (!animation) scheduleRevealEffect(r, c, nextAnimation)
+    neighbors(r, c).forEach(([nr, nc]) => { if (!board[nr][nc].open) revealCell(nr, nc, nextAnimation) })
+  }
   const safeRemaining = board.reduce((total, row) => total + row.filter(item => !item.mine && !item.open).length, 0)
   if (safeRemaining === 0) {
     gameStatus = 'won'
     board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
   }
+}
+
+function scheduleRevealEffect(r, c, animation) {
+  revealEffects.push({ r, c, at: Date.now(), delay: animation.nextDelay, duration: 360 })
+  animation.nextDelay += 42
+  if (!revealAnimationRunning) {
+    revealAnimationRunning = true
+    animateRevealEffects()
+  }
+}
+
+function animateRevealEffects() {
+  if (!revealEffects.length) {
+    revealAnimationRunning = false
+    draw()
+    return
+  }
+  const now = Date.now()
+  revealEffects = revealEffects.filter(effect => now - effect.at < effect.delay + effect.duration)
+  draw()
+  if (revealEffects.length) setTimeout(animateRevealEffects, 16)
+  else revealAnimationRunning = false
 }
 
 function touchPosition(touch) {
@@ -410,7 +451,93 @@ function animateFlagFeedback() {
   frame()
 }
 
+function playFailureClick() {
+  try {
+    if (!failureAudioContext && typeof wx.createWebAudioContext === 'function') {
+      failureAudioContext = wx.createWebAudioContext()
+    }
+    if (failureAudioContext && failureAudioContext.createOscillator && failureAudioContext.createGain) {
+      if (failureAudioContext.resume) failureAudioContext.resume()
+      const oscillator = failureAudioContext.createOscillator()
+      const gain = failureAudioContext.createGain()
+      const now = failureAudioContext.currentTime || 0
+      oscillator.type = 'square'
+      oscillator.frequency.setValueAtTime(210, now)
+      oscillator.frequency.exponentialRampToValueAtTime(78, now + 0.09)
+      gain.gain.setValueAtTime(0.0001, now)
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.008)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12)
+      oscillator.connect(gain)
+      gain.connect(failureAudioContext.destination)
+      oscillator.start(now)
+      oscillator.stop(now + 0.13)
+    }
+  } catch (error) {
+    // 音频能力在部分开发者工具或旧基础库中不可用，继续使用视觉反馈。
+  }
+  if (typeof wx.vibrateShort === 'function') {
+    try { wx.vibrateShort({ type: 'light' }) } catch (error) { /* ignore */ }
+  }
+}
+
+function triggerFailureSequence(r, c) {
+  revealEffects = []
+  revealAnimationRunning = false
+  const revealQueue = []
+  board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
+    if (cell.mine && !(rowIndex === r && colIndex === c) && !cell.flag) revealQueue.push([rowIndex, colIndex])
+  }))
+  board[r][c].open = true
+  gameStatus = 'failing'
+  failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
+  playFailureClick()
+  draw()
+  setTimeout(advanceFailureSequence, 360)
+}
+
+function advanceFailureSequence() {
+  if (!failureSequence) return
+  if (failureSequence.phase === 'freeze') {
+    failureSequence.phase = 'explode'
+    failureSequence.at = Date.now()
+    animateFailureFrame()
+    return
+  }
+  if (failureSequence.phase === 'explode') {
+    failureSequence.phase = 'reveal'
+    failureSequence.at = Date.now()
+    failureSequence.revealed = 0
+    animateFailureFrame()
+    return
+  }
+  const next = failureSequence.revealQueue[failureSequence.revealed]
+  if (next) {
+    board[next[0]][next[1]].open = true
+    failureSequence.revealed += 1
+    draw()
+    setTimeout(advanceFailureSequence, 72)
+    return
+  }
+  failureSequence = null
+  gameStatus = 'lost'
+  draw()
+}
+
+function animateFailureFrame() {
+  if (!failureSequence) return
+  draw()
+  const duration = failureSequence.phase === 'explode' ? 520 : 0
+  if (duration && Date.now() - failureSequence.at < duration) setTimeout(animateFailureFrame, 16)
+  else advanceFailureSequence()
+}
+
 function initBoard() {
+  const difficulty = difficulties[difficultyIndex]
+  boardRows = difficulty.rows
+  mineCount = difficulty.mines
+  failureSequence = null
+  revealEffects = []
+  revealAnimationRunning = false
   gameStatus = 'playing'
   gameStartedAt = 0
   gameElapsedSeconds = 0
@@ -418,21 +545,24 @@ function initBoard() {
   flagAnimation = null
   numberFeedback = null
   board = []
-  for (let r = 0; r < boardSize; r += 1) {
+  for (let r = 0; r < boardRows; r += 1) {
     board[r] = []
-    for (let c = 0; c < boardSize; c += 1) board[r][c] = { mine: false, number: 0, open: false, flag: false }
+    for (let c = 0; c < boardColumns; c += 1) board[r][c] = { mine: false, number: 0, open: false, flag: false }
   }
   let placed = 0
   while (placed < mineCount) {
-    const r = Math.floor(Math.random() * boardSize); const c = Math.floor(Math.random() * boardSize)
+    const r = Math.floor(Math.random() * boardRows); const c = Math.floor(Math.random() * boardColumns)
     if (!board[r][c].mine) { board[r][c].mine = true; placed += 1 }
   }
-  for (let r = 0; r < boardSize; r += 1) for (let c = 0; c < boardSize; c += 1) {
+  for (let r = 0; r < boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
     board[r][c].number = neighbors(r, c).filter(([nr, nc]) => board[nr][nc].mine).length
   }
 }
 
 function replayBoard() {
+  failureSequence = null
+  revealEffects = []
+  revealAnimationRunning = false
   gameStatus = 'playing'
   gameStartedAt = 0
   gameElapsedSeconds = 0
@@ -443,7 +573,7 @@ function replayBoard() {
   draw()
 }
 
-function neighbors(r, c) { const result = []; for (let dr = -1; dr <= 1; dr += 1) for (let dc = -1; dc <= 1; dc += 1) { const nr = r + dr; const nc = c + dc; if ((dr || dc) && nr >= 0 && nr < boardSize && nc >= 0 && nc < boardSize) result.push([nr, nc]) } return result }
+function neighbors(r, c) { const result = []; for (let dr = -1; dr <= 1; dr += 1) for (let dc = -1; dc <= 1; dc += 1) { const nr = r + dr; const nc = c + dc; if ((dr || dc) && nr >= 0 && nr < boardRows && nc >= 0 && nc < boardColumns) result.push([nr, nc]) } return result }
 function updateGameTimer() {
   if (!gameStartedAt || gameStatus !== 'playing') return
   gameElapsedSeconds = Math.floor((Date.now() - gameStartedAt) / 1000)
@@ -451,10 +581,17 @@ function updateGameTimer() {
   setTimeout(updateGameTimer, 1000)
 }
 function drawGameBoard() {
-  const width = Math.min(W - 36, 360); const gap = Math.max(4, width * 0.012); cellSize = width / boardSize; boardX = (W - width) / 2
-  const boardHeight = cellSize * boardSize
+  const maxWidth = Math.min(W - 36, 360)
   const reservedTop = 112
   const reservedBottom = 148
+  const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
+  const widthCellSize = maxWidth / boardColumns
+  const heightCellSize = availableHeight / boardRows
+  cellSize = Math.min(widthCellSize, heightCellSize)
+  const width = cellSize * boardColumns
+  const gap = Math.max(4, width * 0.012)
+  boardX = (W - width) / 2
+  const boardHeight = cellSize * boardRows
   boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
   const flagCount = board.reduce((sum, row) => sum + row.filter(cell => cell.flag).length, 0)
   const statusY = 82
@@ -462,9 +599,10 @@ function drawGameBoard() {
   if (mineStatusIcon.width) ctx.drawImage(mineStatusIcon, W / 2 - 25, statusY - 11, 22, 22)
   text(String(mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
   text(`${gameElapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
-  for (let r = 0; r < boardSize; r += 1) for (let c = 0; c < boardSize; c += 1) {
+  for (let r = 0; r < boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
     const cell = board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
     const effect = collapseEffects.find(item => item.r === r && item.c === c)
+    const revealEffect = revealEffects.find(item => item.r === r && item.c === c)
     let effectProgress = 0
     if (effect) effectProgress = Math.max(0, Math.min(1, (Date.now() - effect.at) / 360))
     const effectAmount = effect ? Math.sin(effectProgress * Math.PI) : 0
@@ -494,11 +632,64 @@ function drawGameBoard() {
     const flagFx = flagAnimation && flagAnimation.r === r && flagAnimation.c === c ? flagAnimation : null
     if (cell.flag && !cell.open && flagFx) drawFlyingFlag(flagFx, centerX, centerY)
     else if (cell.flag && !cell.open) drawFlag(centerX, centerY)
-    else if (cell.open && cell.mine) text('✣', x + cellSize / 2, y + cellSize / 2, 18, '#8293cf', 'center')
+    else if (cell.open && cell.mine) {
+      if (failureSequence && failureSequence.phase === 'explode' && failureSequence.r === r && failureSequence.c === c) drawMineExplosion(centerX, centerY)
+      else text('✣', centerX, centerY, 18, '#8293cf', 'center')
+    }
     else if (cell.open && cell.number) text(String(cell.number), x + cellSize / 2, y + cellSize / 2, 22, ['','#2864a3','#258c55','#7b5aa0','#b06a48'][cell.number] || '#64788c', 'center')
+    if (revealEffect) drawRevealOverlay(revealEffect, centerX, centerY, size)
     ctx.restore()
   }
-  if (gameStatus !== 'playing') drawGameResult()
+  if (gameStatus === 'won' || gameStatus === 'lost') drawGameResult()
+}
+
+function drawRevealOverlay(effect, centerX, centerY, size) {
+  const elapsed = Date.now() - effect.at - effect.delay
+  const progress = Math.max(0, Math.min(1, elapsed / effect.duration))
+  let scale
+  if (progress < 0.32) {
+    const p = progress / 0.32
+    scale = 1 + 0.14 * (1 - Math.pow(1 - p, 3))
+  } else {
+    const p = (progress - 0.32) / 0.68
+    scale = 1.14 * Math.max(0, 1 - Math.pow(p, 1.25))
+  }
+  if (scale <= 0) return
+  ctx.save()
+  ctx.translate(centerX, centerY)
+  ctx.scale(scale, scale)
+  ctx.translate(-centerX, -centerY)
+  ctx.globalAlpha = progress > 0.78 ? Math.max(0, 1 - (progress - 0.78) / 0.22) : 1
+  roundRect(centerX - size / 2, centerY - size / 2 + 2, size, size, 10, '#c3d2dc')
+  roundRect(centerX - size / 2, centerY - size / 2, size, size, 10, '#e7eff6', '#c5d4df')
+  ctx.globalAlpha *= 0.72
+  roundRect(centerX - size / 2 + 2, centerY - size / 2 + 2, size - 4, size - 4, 8, null, '#f8fbfd')
+  ctx.restore()
+}
+
+function drawMineExplosion(x, y) {
+  const progress = failureSequence ? Math.min(1, Math.max(0, (Date.now() - failureSequence.at) / 520)) : 1
+  const burst = Math.sin(progress * Math.PI)
+  const radius = cellSize * (0.3 + progress * 0.75)
+  ctx.save()
+  ctx.globalAlpha = 1 - progress * 0.18
+  ctx.fillStyle = progress < 0.72 ? '#e46b5d' : '#b94d45'
+  ctx.beginPath(); ctx.arc(x, y, Math.max(3, cellSize * (0.16 + burst * 0.22)), 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = '#d9574b'; ctx.lineWidth = Math.max(1.5, cellSize * 0.06); ctx.lineCap = 'round'
+  for (let i = 0; i < 8; i += 1) {
+    const angle = i * Math.PI / 4
+    const inner = radius * 0.45
+    const outer = radius
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner)
+    ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer); ctx.stroke()
+  }
+  ctx.fillStyle = '#f2a516'
+  for (let i = 0; i < 6; i += 1) {
+    const angle = i * Math.PI / 3 + 0.2
+    const distance = radius * (0.55 + (i % 2) * 0.28)
+    ctx.beginPath(); ctx.arc(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, Math.max(1.5, cellSize * 0.045), 0, Math.PI * 2); ctx.fill()
+  }
+  ctx.restore()
 }
 
 function drawFlyingFlag(effect, targetX, targetY) {
@@ -547,11 +738,11 @@ function drawResultDifficultySelector() {
     const direction = difficultyTo > difficultyFrom ? 1 : -1
     const travel = Math.min(132, W * 0.36)
     ctx.save(); ctx.globalAlpha = 1 - outgoing
-    text(difficulties[difficultyFrom], W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
+    text(difficulties[difficultyFrom].name, W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
     ctx.globalAlpha = incoming
-    text(difficulties[difficultyTo], W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
+    text(difficulties[difficultyTo].name, W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
     ctx.restore()
-  } else text(difficulties[difficultyIndex], W / 2, y, 16, '#707174', 'center')
+  } else text(difficulties[difficultyIndex].name, W / 2, y, 16, '#707174', 'center')
   drawChevron(W - 72, y, 'right', pressedArrow === 'right')
 }
 

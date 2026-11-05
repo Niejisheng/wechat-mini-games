@@ -34,9 +34,16 @@
 ## 项目结构
 
 ```text
-├── assets/icons/       # 界面图标
-├── game.js             # 游戏入口与画布交互
-├── game.json           # 小游戏全局配置
-└── project.config.json # 微信开发者工具项目配置
+├── assets/icons/              # 界面图标
+├── src/app/game-registry.js   # 合集游戏注册表
+├── src/shared/canvas.js       # 通用 Canvas 绘制工具
+├── src/games/minesweeper/
+│   └── logic.js               # 扫雷纯规则与棋盘数据
+├── tests/                     # 可在 Node.js 中运行的规则测试
+├── game.js                    # 当前入口、Canvas 绘制与页面交互
+├── game.json                  # 小游戏全局配置
+└── project.config.json        # 微信开发者工具项目配置
 ```
+
+项目采用逐步拆分的结构。游戏注册表为后续数独和其他小游戏预留统一入口，游戏规则优先保持为不依赖 Canvas 的纯模块，便于单独测试和复用。后续会继续将扫雷的绘制、动画和触摸控制迁移到对应游戏目录中。
 

@@ -1,5 +1,9 @@
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
+const gameRegistry = require('./src/app/game-registry')
+const minesweeperLogic = require('./src/games/minesweeper/logic')
+const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
+const { roundRect, text } = canvasTools
 const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
 const scale = info.pixelRatio || 1
 const W = info.windowWidth
@@ -11,7 +15,7 @@ ctx.scale(scale, scale)
 let screen = 'home'
 let gameMode = false
 let board = []
-const boardColumns = 9
+const boardColumns = minesweeperLogic.BOARD_COLUMNS
 let boardRows = 9
 let mineCount = 10
 let boardX = 20
@@ -41,13 +45,7 @@ let failureSequence = null
 let explodedMine = null
 let failureAudioContext = null
 // 难度从低到高，左右箭头分别对应上一级和下一级
-const difficulties = [
-  { name: '容易', rows: 9, mines: 10 },
-  { name: '中等', rows: 11, mines: 17 },
-  { name: '标准', rows: 13, mines: 25 },
-  { name: '困难', rows: 15, mines: 38 },
-  { name: '极难', rows: 17, mines: 54 }
-]
+const difficulties = minesweeperLogic.DIFFICULTIES
 const iconImages = {}
 ;['settings', 'shopping-cart', 'list', 'info-circle'].forEach((name) => {
   const image = wx.createImage()
@@ -58,26 +56,6 @@ const mineStatusIcon = wx.createImage()
 mineStatusIcon.src = 'assets/icons/mine.png'
 mineStatusIcon.onload = () => { if (screen === 'minesweeper') draw() }
 
-function roundRect(x, y, w, h, r, fill, stroke) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-  if (fill) { ctx.fillStyle = fill; ctx.fill() }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke() }
-}
-
-function text(value, x, y, size, color, align = 'left') {
-  ctx.font = `${size}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`
-  ctx.fillStyle = color
-  ctx.textAlign = align
-  ctx.textBaseline = 'middle'
-  ctx.fillText(value, x, y)
-}
-
 function drawHome() {
   ctx.fillStyle = '#f7f9fb'
   ctx.fillRect(0, 0, W, H)
@@ -85,7 +63,7 @@ function drawHome() {
   text('休闲益智小游戏', 44, 136, 27, '#27313b')
   text('安静地玩一会儿', 44, 170, 14, '#9aa6b2')
   text('选择游戏', 44, 246, 15, '#4f5d69')
-  text('2 个游戏', W - 44, 246, 12, '#a4afb9', 'right')
+  text(`${gameRegistry.listGames().length} 个游戏`, W - 44, 246, 12, '#a4afb9', 'right')
   card(44, 276, W - 88, 'minesweeper', '扫雷', '找出所有地雷，保持冷静', '#e8eff4', '#657b8c', '✣')
   card(44, 374, W - 88, 'sudoku', '数独', '用逻辑填满九宫格', '#eef0ed', '#788778', '9')
   text('简洁的界面，专注于思考', W / 2, H - 48, 11, '#b0bac2', 'center')
@@ -271,7 +249,7 @@ wx.onTouchStart(event => {
       if (press.row >= 0 && press.row < boardRows && press.col >= 0 && press.col < boardColumns) {
         const cell = board[press.row][press.col]
         if (!cell.open) {
-          if (!cell.flag && board.reduce((total, row) => total + row.filter(item => item.flag).length, 0) >= mineCount) return
+          if (!cell.flag && minesweeperLogic.countFlags(board) >= mineCount) return
           cell.flag = !cell.flag
           press.flagged = true
           flagAnimation = { r: press.row, c: press.col, fromX: press.x, fromY: press.y, at: Date.now() }
@@ -390,7 +368,7 @@ function revealCell(r, c) {
     if (!animation) scheduleRevealEffect(r, c, nextAnimation)
     neighbors(r, c).forEach(([nr, nc]) => { if (!board[nr][nc].open) revealCell(nr, nc, nextAnimation) })
   }
-  const safeRemaining = board.reduce((total, row) => total + row.filter(item => !item.mine && !item.open).length, 0)
+  const safeRemaining = minesweeperLogic.countSafeRemaining(board)
   if (safeRemaining === 0) {
     gameStatus = 'won'
     board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
@@ -547,19 +525,7 @@ function initBoard() {
   collapseEffects = []
   flagAnimation = null
   numberFeedback = null
-  board = []
-  for (let r = 0; r < boardRows; r += 1) {
-    board[r] = []
-    for (let c = 0; c < boardColumns; c += 1) board[r][c] = { mine: false, number: 0, open: false, flag: false }
-  }
-  let placed = 0
-  while (placed < mineCount) {
-    const r = Math.floor(Math.random() * boardRows); const c = Math.floor(Math.random() * boardColumns)
-    if (!board[r][c].mine) { board[r][c].mine = true; placed += 1 }
-  }
-  for (let r = 0; r < boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
-    board[r][c].number = neighbors(r, c).filter(([nr, nc]) => board[nr][nc].mine).length
-  }
+  board = minesweeperLogic.createBoard(difficultyIndex)
 }
 
 function replayBoard() {
@@ -577,7 +543,7 @@ function replayBoard() {
   draw()
 }
 
-function neighbors(r, c) { const result = []; for (let dr = -1; dr <= 1; dr += 1) for (let dc = -1; dc <= 1; dc += 1) { const nr = r + dr; const nc = c + dc; if ((dr || dc) && nr >= 0 && nr < boardRows && nc >= 0 && nc < boardColumns) result.push([nr, nc]) } return result }
+function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, boardRows, boardColumns) }
 function updateGameTimer() {
   if (!gameStartedAt || gameStatus !== 'playing') return
   gameElapsedSeconds = Math.floor((Date.now() - gameStartedAt) / 1000)
@@ -597,7 +563,7 @@ function drawGameBoard() {
   boardX = (W - width) / 2
   const boardHeight = cellSize * boardRows
   boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
-  const flagCount = board.reduce((sum, row) => sum + row.filter(cell => cell.flag).length, 0)
+  const flagCount = minesweeperLogic.countFlags(board)
   const statusY = 82
   drawBackArrow(26, 72)
   if (mineStatusIcon.width) ctx.drawImage(mineStatusIcon, W / 2 - 25, statusY - 11, 22, 22)

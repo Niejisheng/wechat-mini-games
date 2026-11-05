@@ -38,6 +38,7 @@ let numberFeedback = null
 let revealEffects = []
 let revealAnimationRunning = false
 let failureSequence = null
+let explodedMine = null
 let failureAudioContext = null
 // 难度从低到高，左右箭头分别对应上一级和下一级
 const difficulties = [
@@ -488,6 +489,7 @@ function triggerFailureSequence(r, c) {
     if (cell.mine && !(rowIndex === r && colIndex === c) && !cell.flag) revealQueue.push([rowIndex, colIndex])
   }))
   board[r][c].open = true
+  explodedMine = { r, c }
   gameStatus = 'failing'
   failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
   playFailureClick()
@@ -536,6 +538,7 @@ function initBoard() {
   boardRows = difficulty.rows
   mineCount = difficulty.mines
   failureSequence = null
+  explodedMine = null
   revealEffects = []
   revealAnimationRunning = false
   gameStatus = 'playing'
@@ -561,6 +564,7 @@ function initBoard() {
 
 function replayBoard() {
   failureSequence = null
+  explodedMine = null
   revealEffects = []
   revealAnimationRunning = false
   gameStatus = 'playing'
@@ -634,7 +638,7 @@ function drawGameBoard() {
     else if (cell.flag && !cell.open) drawFlag(centerX, centerY)
     else if (cell.open && cell.mine) {
       if (failureSequence && failureSequence.phase === 'explode' && failureSequence.r === r && failureSequence.c === c) drawMineExplosion(centerX, centerY)
-      else text('✣', centerX, centerY, 18, '#8293cf', 'center')
+      else drawMineGlyph(centerX, centerY, cellSize * 0.58, explodedMine && explodedMine.r === r && explodedMine.c === c ? '#d86b4f' : '#5f7180')
     }
     else if (cell.open && cell.number) text(String(cell.number), x + cellSize / 2, y + cellSize / 2, 22, ['','#2864a3','#258c55','#7b5aa0','#b06a48'][cell.number] || '#64788c', 'center')
     if (revealEffect) drawRevealOverlay(revealEffect, centerX, centerY, size)
@@ -673,8 +677,8 @@ function drawMineExplosion(x, y) {
   const radius = cellSize * (0.3 + progress * 0.75)
   ctx.save()
   ctx.globalAlpha = 1 - progress * 0.18
-  ctx.fillStyle = progress < 0.72 ? '#e46b5d' : '#b94d45'
-  ctx.beginPath(); ctx.arc(x, y, Math.max(3, cellSize * (0.16 + burst * 0.22)), 0, Math.PI * 2); ctx.fill()
+  const mineColor = progress < 0.72 ? '#d86b4f' : '#c95743'
+  drawMineGlyph(x, y, cellSize * (0.46 + burst * 0.16), mineColor)
   ctx.strokeStyle = '#d9574b'; ctx.lineWidth = Math.max(1.5, cellSize * 0.06); ctx.lineCap = 'round'
   for (let i = 0; i < 8; i += 1) {
     const angle = i * Math.PI / 4
@@ -689,6 +693,25 @@ function drawMineExplosion(x, y) {
     const distance = radius * (0.55 + (i % 2) * 0.28)
     ctx.beginPath(); ctx.arc(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, Math.max(1.5, cellSize * 0.045), 0, Math.PI * 2); ctx.fill()
   }
+  ctx.restore()
+}
+
+function drawMineGlyph(x, y, size, color) {
+  const core = size * 0.29
+  const toothWidth = size * 0.13
+  const toothLength = size * 0.2
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.fillStyle = color
+  for (let i = 0; i < 8; i += 1) {
+    ctx.save()
+    ctx.rotate(i * Math.PI / 4)
+    roundRect(-toothWidth / 2, -core - toothLength + 1, toothWidth, toothLength, toothWidth * 0.35, color)
+    ctx.restore()
+  }
+  ctx.beginPath(); ctx.arc(0, 0, core, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#f7fafc'
+  ctx.beginPath(); ctx.arc(-core * 0.28, -core * 0.3, Math.max(1.2, core * 0.16), 0, Math.PI * 2); ctx.fill()
   ctx.restore()
 }
 

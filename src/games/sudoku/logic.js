@@ -132,9 +132,10 @@ function reducer(state, action) {
         if (exclusions[index] & mask) notes[index] &= ~mask
         else notes[index] |= mask
       } else {
+        const removing = Boolean(notes[index] & mask)
         notes[index] ^= mask
-        if (notes[index] & mask) exclusions[index] &= ~mask
-        else exclusions[index] |= mask
+        if (removing && (candidates(values, index) & mask)) exclusions[index] |= mask
+        else if (!removing) exclusions[index] &= ~mask
       }
     } else {
       values[index] = action.digit

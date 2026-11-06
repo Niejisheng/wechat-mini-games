@@ -45,6 +45,8 @@ let revealAnimationRunning = false
 let failureSequence = null
 let explodedMine = null
 let failureAudioContext = null
+let winCelebration = null
+let winCelebrationRunning = false
 let sudokuGame = sudokuLogic.gameFromPuzzle()
 let sudokuBoardX = 20
 let sudokuBoardY = 150
@@ -349,6 +351,7 @@ wx.onTouchStart(event => {
   }
   if (screen !== 'minesweeper') return
   if (failureSequence) return
+  if (winCelebrationRunning) return
   const touch = event.touches[0]
   const { x, y } = touchPosition(touch)
   if (gameMode) {
@@ -411,6 +414,7 @@ wx.onTouchEnd(event => {
     return
   }
   if (failureSequence) return
+  if (winCelebrationRunning) return
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
   if (gameMode && gamePress) {
@@ -506,6 +510,7 @@ function revealCell(r, c) {
   if (safeRemaining === 0) {
     gameStatus = 'won'
     board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
+    startWinCelebration()
   }
 }
 
@@ -651,6 +656,8 @@ function initBoard() {
   mineCount = difficulty.mines
   failureSequence = null
   explodedMine = null
+  winCelebration = null
+  winCelebrationRunning = false
   revealEffects = []
   revealAnimationRunning = false
   gameStatus = 'playing'
@@ -665,6 +672,8 @@ function initBoard() {
 function replayBoard() {
   failureSequence = null
   explodedMine = null
+  winCelebration = null
+  winCelebrationRunning = false
   revealEffects = []
   revealAnimationRunning = false
   gameStatus = 'playing'
@@ -744,7 +753,51 @@ function drawGameBoard() {
     if (revealEffect) drawRevealOverlay(revealEffect, centerX, centerY, size)
     ctx.restore()
   }
-  if (gameStatus === 'won' || gameStatus === 'lost') drawGameResult()
+  if (gameStatus === 'won') {
+    if (winCelebrationRunning) drawBoardWinCelebration()
+    else drawGameResult()
+  } else if (gameStatus === 'lost') drawGameResult()
+}
+
+function drawBoardWinCelebration() {
+  if (!winCelebration) return
+  const progress = Math.min(1, (Date.now() - winCelebration.at) / 2800)
+  const centerX = boardX + boardColumns * cellSize / 2
+  const centerY = boardY + boardRows * cellSize / 2
+  const boardWidth = boardColumns * cellSize
+  const boardHeight = boardRows * cellSize
+  const pulse = 0.5 + Math.sin(progress * Math.PI * 6) * 0.5
+  ctx.save()
+  ctx.fillStyle = 'rgba(247, 249, 251, 0.42)'
+  ctx.fillRect(boardX, boardY, boardWidth, boardHeight)
+  for (let i = 0; i < 3; i += 1) {
+    const cycle = (progress * 3 - i * 0.28 + 1) % 1
+    const radius = 18 + cycle * Math.min(boardWidth, boardHeight) * 0.62
+    ctx.globalAlpha = (1 - cycle) * 0.42
+    ctx.strokeStyle = i === 1 ? '#8293cf' : '#78a994'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.stroke()
+  }
+  ctx.globalAlpha = 0.22 + pulse * 0.08
+  ctx.fillStyle = '#9bc6ac'
+  ctx.beginPath(); ctx.arc(centerX, centerY, 34 + pulse * 8, 0, Math.PI * 2); ctx.fill()
+  const particles = ['#78a994', '#8293cf', '#edb36d', '#b5c9d9', '#9ebcae', '#d89a72', '#a8bad8', '#8ab39e']
+  particles.forEach((color, i) => {
+    const angle = i * Math.PI * 2 / particles.length + 0.18
+    const distance = 24 + progress * Math.min(boardWidth, boardHeight) * 0.58
+    const x = centerX + Math.cos(angle) * distance
+    const y = centerY + Math.sin(angle) * distance
+    ctx.globalAlpha = (1 - progress) * 0.9
+    ctx.fillStyle = color
+    ctx.save(); ctx.translate(x, y); ctx.rotate(progress * 4 + i)
+    ctx.beginPath(); ctx.arc(0, 0, 2 + i % 3, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+  })
+  ctx.globalAlpha = 0.92 + pulse * 0.06
+  ctx.fillStyle = '#78a994'
+  ctx.beginPath(); ctx.arc(centerX, centerY, 18 + pulse * 2, 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(centerX - 8, centerY); ctx.lineTo(centerX - 2, centerY + 6); ctx.lineTo(centerX + 9, centerY - 7); ctx.stroke()
+  ctx.restore()
 }
 
 function drawRevealOverlay(effect, centerX, centerY, size) {
@@ -837,6 +890,7 @@ function drawGameResult() {
   const won = gameStatus === 'won'
   ctx.fillStyle = 'rgba(247, 249, 251, 0.92)'
   ctx.fillRect(24, H * 0.69, W - 48, 116)
+  if (won) drawWinCelebration()
   text(won ? '恭喜通关' : '踩到地雷了', W / 2, H * 0.73, 22, won ? '#258c55' : '#b06a48', 'center')
   text(won ? '所有安全方块都已找到' : '雷区已揭示，重新开始试试', W / 2, H * 0.77, 13, '#667483', 'center')
   roundRect(44, H * 0.79, W - 88, 52, 26, '#8293cf')
@@ -848,6 +902,66 @@ function drawGameResult() {
     text('再试一次', W * 0.68, H * 0.79 + 26, 15, '#ffffff', 'center')
   }
   drawResultDifficultySelector()
+}
+
+function startWinCelebration() {
+  if (winCelebrationRunning) return
+  winCelebration = { at: Date.now() }
+  winCelebrationRunning = true
+  animateWinCelebration()
+}
+
+function animateWinCelebration() {
+  if (!winCelebration) return
+  draw()
+  if (Date.now() - winCelebration.at < 2800) setTimeout(animateWinCelebration, 16)
+  else { winCelebrationRunning = false; draw() }
+}
+
+function drawWinCelebration() {
+  if (!winCelebration) return
+  const elapsed = Date.now() - winCelebration.at
+  const progress = Math.min(1, elapsed / 2800)
+  const centerX = W / 2
+  const centerY = H * 0.735
+  const pulse = 0.5 + Math.sin(progress * Math.PI * 5) * 0.5
+  const fade = progress > 0.82 ? 1 - (progress - 0.82) / 0.18 : 1
+  ctx.save()
+  ctx.globalAlpha = 0.12 + pulse * 0.06
+  ctx.fillStyle = '#9bc6ac'
+  ctx.beginPath(); ctx.arc(centerX, centerY, 32 + pulse * 7, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 0.28 * fade
+  ctx.strokeStyle = '#78a994'; ctx.lineWidth = 2
+  ;[42 + progress * 28, 56 + progress * 34].forEach(radius => { ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.stroke() })
+  ctx.globalAlpha = 0.22 * fade
+  ctx.strokeStyle = '#b5d3c1'; ctx.lineWidth = 1
+  for (let i = 0; i < 12; i += 1) {
+    const angle = i * Math.PI * 2 / 12
+    const inner = 30 + pulse * 5
+    const outer = inner + 13 + Math.min(1, progress * 2) * 18
+    ctx.beginPath(); ctx.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner)
+    ctx.lineTo(centerX + Math.cos(angle) * outer, centerY + Math.sin(angle) * outer); ctx.stroke()
+  }
+  const particles = ['#78a994', '#8293cf', '#edb36d', '#b5c9d9', '#9ebcae', '#d89a72']
+  particles.forEach((color, i) => {
+    const angle = i * Math.PI * 2 / particles.length + 0.25
+    const distance = 24 + progress * 88
+    const x = centerX + Math.cos(angle) * distance
+    const y = centerY + Math.sin(angle) * distance + progress * progress * 20
+    const size = 2 + (i % 3)
+    ctx.globalAlpha = (1 - progress) * 0.82
+    ctx.fillStyle = color
+    ctx.save(); ctx.translate(x, y); ctx.rotate(progress * 3 + i)
+    if (i % 2) { ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.fill() }
+    else { ctx.beginPath(); ctx.moveTo(0, -size * 1.5); ctx.lineTo(size * 1.2, size); ctx.lineTo(-size * 1.2, size); ctx.closePath(); ctx.fill() }
+    ctx.restore()
+  })
+  ctx.globalAlpha = 0.86 + pulse * 0.1
+  ctx.fillStyle = '#78a994'
+  ctx.beginPath(); ctx.arc(centerX, centerY, 17 + pulse * 2, 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(centerX - 7, centerY); ctx.lineTo(centerX - 2, centerY + 5); ctx.lineTo(centerX + 8, centerY - 6); ctx.stroke()
+  ctx.restore()
 }
 
 function drawResultDifficultySelector() {

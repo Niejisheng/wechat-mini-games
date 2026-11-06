@@ -39,6 +39,8 @@
 ├── src/shared/canvas.js       # 通用 Canvas 绘制工具
 ├── src/games/minesweeper/
 │   └── logic.js               # 扫雷纯规则与棋盘数据
+├── src/games/sudoku/
+│   └── logic.js               # 数独候选、笔记、排除与撤销
 ├── tests/                     # 可在 Node.js 中运行的规则测试
 ├── game.js                    # 当前入口、Canvas 绘制与页面交互
 ├── game.json                  # 小游戏全局配置

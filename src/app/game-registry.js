@@ -11,7 +11,7 @@ const games = [
     name: '数独',
     description: '用逻辑填满九宫格',
     icon: 'sudoku',
-    status: 'coming-soon'
+    status: 'available'
   }
 ]
 

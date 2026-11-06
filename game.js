@@ -2,6 +2,7 @@ const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
+const sudokuLogic = require('./src/games/sudoku/logic')
 const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
 const { roundRect, text } = canvasTools
 const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
@@ -44,6 +45,14 @@ let revealAnimationRunning = false
 let failureSequence = null
 let explodedMine = null
 let failureAudioContext = null
+let sudokuGame = sudokuLogic.gameFromPuzzle()
+let sudokuBoardX = 20
+let sudokuBoardY = 150
+let sudokuCellSize = 36
+let sudokuPress = null
+let sudokuLongPressTimer = null
+let sudokuElapsedSeconds = 0
+let sudokuTimer = null
 // 难度从低到高，左右箭头分别对应上一级和下一级
 const difficulties = minesweeperLogic.DIFFICULTIES
 const iconImages = {}
@@ -224,10 +233,120 @@ function drawCart(x, y) { ctx.strokeStyle = '#707174'; ctx.lineWidth = 3; ctx.be
 function drawScore(x, y) { ctx.strokeStyle = '#707174'; ctx.lineWidth = 3; [0, 8, 16].forEach((dy) => { ctx.beginPath(); ctx.arc(x - 12, y - 9 + dy, 2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 4, y - 9 + dy); ctx.lineTo(x + 15, y - 9 + dy); ctx.stroke() }) }
 function drawInfo(x, y) { ctx.fillStyle = '#707174'; ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill(); text('i', x, y + 1, 19, '#ffffff', 'center') }
 
-function draw() { screen === 'home' ? drawHome() : drawMinesweeper() }
+function drawSudoku() {
+  ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H)
+  text('A LITTLE FOCUS, A LITTLE JOY', 24, 24, 9, '#8293a8')
+  text('片刻专注，步步有解', 24, 57, 25, '#27313b')
+  text('.', 24 + ctx.measureText('片刻专注，步步有解').width + 2, 57, 25, '#8293cf')
+  ctx.fillStyle = '#78a994'; ctx.beginPath(); ctx.arc(28, 103, 3.5, 0, Math.PI * 2); ctx.fill()
+  text('中等', 40, 103, 13, '#33414d')
+  text('/', 78, 103, 12, '#a4afb9')
+  text('多想一步', 98, 103, 12, '#8293a8')
+  drawClock(W - 62, 103)
+  text(formatSudokuTime(sudokuElapsedSeconds), W - 22, 103, 13, '#8293a8', 'right')
+  const width = Math.min(W - 24, 360)
+  sudokuCellSize = width / 9
+  sudokuBoardX = (W - width) / 2
+  const boardHeight = sudokuCellSize * 9
+  const centeredBoardY = (H - boardHeight) / 2 + 8
+  const minimumBoardY = 190
+  const maximumBoardY = Math.max(minimumBoardY, H - boardHeight - 96)
+  sudokuBoardY = Math.max(minimumBoardY, Math.min(maximumBoardY, centeredBoardY))
+  const filterY = sudokuBoardY - 35
+  const filterCaptionY = filterY - 38
+  text('寻找数字', 24, filterCaptionY, 13, '#536b7d')
+  text('点击查看可能位置', 91, filterCaptionY, 10, '#a0adb7')
+  text('角标为剩余数量', W - 24, filterCaptionY, 10, '#8798a5', 'right')
+  sudokuLogic.DIGITS.forEach((digit, index) => {
+    const x = sudokuBoardX + (index + 0.5) * sudokuCellSize
+    const active = sudokuGame.filter === digit
+    const remaining = Math.max(0, 9 - sudokuGame.values.filter(value => value === digit).length)
+    const completed = remaining === 0
+    const cardFill = completed ? '#eef2f4' : active ? '#e5edf9' : '#ffffff'
+    const cardStroke = completed ? '#e2e7eb' : active ? '#8293cf' : '#d8e1e8'
+    const digitColor = completed ? '#a9b4bc' : active ? '#5e78ad' : '#536b7d'
+    roundRect(x - sudokuCellSize * 0.43, filterY - 19, sudokuCellSize * 0.86, 42, 9, completed ? '#e1e7eb' : '#d6e0e8')
+    roundRect(x - sudokuCellSize * 0.43, filterY - 21, sudokuCellSize * 0.86, 42, 9, cardFill, cardStroke)
+    drawSearchDigit(String(digit), x, filterY + 2, digitColor)
+    ctx.fillStyle = completed ? '#87ad9b' : '#ed9a58'; ctx.beginPath(); ctx.arc(x + sudokuCellSize * 0.31, filterY - 15, 7.5, 0, Math.PI * 2); ctx.fill()
+    if (completed) {
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + sudokuCellSize * 0.25, filterY - 15); ctx.lineTo(x + sudokuCellSize * 0.29, filterY - 12); ctx.lineTo(x + sudokuCellSize * 0.36, filterY - 18); ctx.stroke()
+    } else text(String(remaining), x + sudokuCellSize * 0.31, filterY - 15, 8, '#ffffff', 'center')
+  })
+  const selected = sudokuGame.selected
+  const activeDigit = sudokuGame.filter === null && selected !== null ? sudokuGame.values[selected] : 0
+  const errors = sudokuLogic.conflicts(sudokuGame.values)
+  const searchMode = sudokuGame.filter !== null
+  for (let row = 0; row < 9; row += 1) for (let col = 0; col < 9; col += 1) {
+    const index = row * 9 + col; const x = sudokuBoardX + col * sudokuCellSize; const y = sudokuBoardY + row * sudokuCellSize
+    const possible = sudokuGame.filter !== null && !sudokuGame.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuGame.values, index, sudokuGame.exclusions) & (1 << sudokuGame.filter))
+    const related = !searchMode && selected !== null && sudokuLogic.PEERS[selected].includes(index)
+    const same = !searchMode && activeDigit && sudokuGame.values[index] === activeDigit
+    ctx.fillStyle = !searchMode && index === selected ? '#dce5f8' : possible ? '#f5e5d7' : same ? '#edf1f5' : '#ffffff'
+    ctx.fillRect(x, y, sudokuCellSize, sudokuCellSize)
+    ctx.strokeStyle = errors.has(index) ? '#d86b4f' : '#d8e0e6'; ctx.lineWidth = 1; ctx.strokeRect(x, y, sudokuCellSize, sudokuCellSize)
+    if (related && index !== selected) { ctx.fillStyle = '#f3f6f8'; ctx.fillRect(x + 1, y + 1, sudokuCellSize - 2, sudokuCellSize - 2) }
+    const value = sudokuGame.values[index]
+    if (value) text(String(value), x + sudokuCellSize / 2, y + sudokuCellSize / 2, 21, sudokuGame.givens[index] ? '#33414d' : '#8293cf', 'center')
+    else sudokuLogic.DIGITS.forEach(digit => { if (sudokuGame.notes[index] & (1 << digit)) text(String(digit), x + ((digit - 1) % 3 + 0.5) * sudokuCellSize / 3, y + (Math.floor((digit - 1) / 3) + 0.5) * sudokuCellSize / 3, 8, '#8b9aa6', 'center') })
+    if (searchMode && selected === index) {
+      ctx.strokeStyle = '#8293cf'; ctx.lineWidth = 2
+      ctx.strokeRect(x + 2, y + 2, sudokuCellSize - 4, sudokuCellSize - 4)
+    }
+  }
+  ctx.strokeStyle = '#95a4ae'; ctx.lineWidth = 2
+  for (let i = 0; i <= 9; i += 3) { ctx.beginPath(); ctx.moveTo(sudokuBoardX + i * sudokuCellSize, sudokuBoardY); ctx.lineTo(sudokuBoardX + i * sudokuCellSize, sudokuBoardY + width); ctx.stroke(); ctx.beginPath(); ctx.moveTo(sudokuBoardX, sudokuBoardY + i * sudokuCellSize); ctx.lineTo(sudokuBoardX + width, sudokuBoardY + i * sudokuCellSize); ctx.stroke() }
+  const keypadY = Math.min(H - 48, sudokuBoardY + width + 56)
+  sudokuLogic.DIGITS.forEach((digit, index) => { const x = sudokuBoardX + (index + 0.5) * sudokuCellSize; const active = sudokuGame.noteMode; roundRect(x - sudokuCellSize * 0.32, keypadY - 18, sudokuCellSize * 0.64, 36, 12, active ? '#f0f3f7' : '#ffffff', '#d7dfe5'); text(String(digit), x, keypadY, 17, '#667483', 'center') })
+  text(sudokuGame.filter ? '淡橙色为候选位置 · 长按候选格排除或恢复' : '点击上方数字寻找候选位置', W / 2, H - 16, 10, '#a4afb9', 'center')
+}
+
+function drawSearchDigit(value, x, y, color) {
+  ctx.font = '19px -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif'
+  ctx.fillStyle = color
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(value, x, y)
+}
+
+function drawClock(x, y) {
+  ctx.strokeStyle = '#8293a8'; ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 4); ctx.moveTo(x, y); ctx.lineTo(x + 3, y + 2); ctx.stroke()
+}
+
+function formatSudokuTime(seconds) {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+}
+
+function startSudokuTimer() {
+  if (sudokuTimer) clearInterval(sudokuTimer)
+  sudokuElapsedSeconds = 0
+  sudokuTimer = setInterval(() => { if (screen === 'sudoku' && !sudokuGame.won) { sudokuElapsedSeconds += 1; draw() } }, 1000)
+}
+
+function stopSudokuTimer() {
+  if (sudokuTimer) clearInterval(sudokuTimer)
+  sudokuTimer = null
+}
+
+function draw() { if (screen === 'home') drawHome(); else if (screen === 'minesweeper') drawMinesweeper(); else drawSudoku() }
 draw()
 
 wx.onTouchStart(event => {
+  if (screen === 'sudoku') {
+    if (sudokuLongPressTimer) clearTimeout(sudokuLongPressTimer)
+    const touch = event.touches[0]; const position = touchPosition(touch)
+    sudokuPress = { ...position, at: Date.now(), longPressed: false }
+    sudokuLongPressTimer = setTimeout(() => {
+      if (!sudokuPress || !sudokuGame.filter) return
+      const col = Math.floor((sudokuPress.x - sudokuBoardX) / sudokuCellSize); const row = Math.floor((sudokuPress.y - sudokuBoardY) / sudokuCellSize)
+      if (row >= 0 && row < 9 && col >= 0 && col < 9) { const index = row * 9 + col; sudokuPress.longPressed = true; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'exclude', index, digit: sudokuGame.filter }); draw() }
+    }, 450)
+    return
+  }
   if (screen !== 'minesweeper') return
   if (failureSequence) return
   const touch = event.touches[0]
@@ -277,6 +396,20 @@ wx.onTouchStart(event => {
 })
 
 wx.onTouchEnd(event => {
+  if (screen === 'sudoku' && sudokuPress) {
+    if (sudokuLongPressTimer) clearTimeout(sudokuLongPressTimer)
+    const press = sudokuPress; sudokuPress = null
+    const touch = event.changedTouches[0]; const { x, y } = touchPosition(touch)
+    if (press.longPressed) return
+    if (x < 90 && y < 100) { stopSudokuTimer(); screen = 'home'; draw(); return }
+    if (x >= W - 90 && y >= 35 && y <= 85) { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'note-mode' }); draw(); return }
+    const filterY = sudokuBoardY - 35
+    if (Math.abs(y - filterY) < 24 && x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9) { const digit = Math.floor((x - sudokuBoardX) / sudokuCellSize) + 1; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'filter', digit }); draw(); return }
+    if (x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9 && y >= sudokuBoardY && y <= sudokuBoardY + sudokuCellSize * 9) { const col = Math.floor((x - sudokuBoardX) / sudokuCellSize); const row = Math.floor((y - sudokuBoardY) / sudokuCellSize); sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'select', index: row * 9 + col }); draw(); return }
+    const keypadY = Math.min(H - 48, sudokuBoardY + sudokuCellSize * 9 + 56)
+    if (Math.abs(y - keypadY) < 26 && x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9) { const digit = Math.floor((x - sudokuBoardX) / sudokuCellSize) + 1; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: sudokuGame.noteMode ? 'note' : 'input', digit }); draw() }
+    return
+  }
   if (failureSequence) return
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
@@ -319,6 +452,7 @@ wx.onTouchEnd(event => {
     return
   }
   if (screen === 'home' && y >= 276 && y <= 352) { screen = 'minesweeper'; draw(); return }
+  if (screen === 'home' && y >= 374 && y <= 450) { screen = 'sudoku'; sudokuGame = sudokuLogic.gameFromPuzzle(); startSudokuTimer(); draw(); return }
   if (screen === 'minesweeper' && y < 120 && x < 90) { screen = 'home'; draw(); return }
   if (screen === 'minesweeper' && Math.abs(y - H * 0.56) < 40) {
     const direction = x < W / 2 ? -1 : 1

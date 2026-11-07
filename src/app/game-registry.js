@@ -29,4 +29,11 @@ function registerGame(game) {
   return true
 }
 
-module.exports = { getGame, listGames, registerGame }
+function setGameFactory(gameId, factory) {
+  const game = getGame(gameId)
+  if (!game || typeof factory !== 'function') return false
+  game.create = factory
+  return true
+}
+
+module.exports = { getGame, listGames, registerGame, setGameFactory }

@@ -1,11 +1,12 @@
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
-const { createGameSession } = require('./src/app/game-session')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
 const { createMinesweeperView } = require('./src/games/minesweeper/view')
+const { createMinesweeperGame } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
+const { createSudokuGame } = require('./src/games/sudoku/game')
 const { touchPosition } = require('./src/shared/input')
 const minesweeperController = require('./src/games/minesweeper/controller')
 const sudokuController = require('./src/games/sudoku/controller')
@@ -273,10 +274,9 @@ const sudokuInput = sudokuController.createController({
   exclude: (index, digit) => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'exclude', index, digit }); draw() }
 })
 
-gameSessions = {
-  minesweeper: createGameSession({ draw: drawMinesweeper, controller: minesweeperInput }),
-  sudoku: createGameSession({ draw: drawSudoku, controller: sudokuInput })
-}
+gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput }))
+gameRegistry.setGameFactory('sudoku', () => createSudokuGame({ draw: drawSudoku, controller: sudokuInput }))
+gameSessions = Object.fromEntries(gameRegistry.listGames().filter(game => game.create).map(game => [game.id, game.create()]))
 
 wx.onTouchStart(event => {
   if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchStart(event); return }

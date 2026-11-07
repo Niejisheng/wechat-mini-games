@@ -25,6 +25,7 @@
 ```sh
 node tests/minesweeper.logic.test.js
 node tests/sudoku.logic.test.js
+node tests/app.registry.test.js
 node --check game.js
 node --check src/games/minesweeper/logic.js
 node --check src/games/sudoku/logic.js
@@ -57,10 +58,12 @@ node --check src/games/sudoku/logic.js
 ├── src/games/minesweeper/
 │   ├── logic.js               # 扫雷纯规则与棋盘数据
 │   ├── controller.js          # 扫雷触摸、长按与结果页输入
+│   ├── game.js                # 扫雷游戏会话工厂
 │   └── view.js                # 扫雷棋盘、动画与结果绘制
 ├── src/games/sudoku/
 │   ├── logic.js               # 数独候选、笔记、排除、撤销与完成判断
 │   ├── controller.js          # 数独触摸、长按和数字输入
+│   ├── game.js                # 数独游戏会话工厂
 │   └── view.js                # 数独棋盘、候选区和键盘绘制
 ├── tests/                     # 可在 Node.js 中运行的规则测试
 ├── game.js                    # 当前入口、Canvas 绘制与页面交互

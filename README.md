@@ -52,18 +52,23 @@ node --check src/games/sudoku/logic.js
 ```text
 ├── assets/icons/              # 界面图标
 ├── src/app/game-registry.js   # 合集游戏注册表
+├── src/app/game-session.js    # 游戏统一生命周期接口
 ├── src/shared/canvas.js       # 通用 Canvas 绘制工具
 ├── src/games/minesweeper/
-│   └── logic.js               # 扫雷纯规则与棋盘数据
+│   ├── logic.js               # 扫雷纯规则与棋盘数据
+│   ├── controller.js          # 扫雷触摸、长按与结果页输入
+│   └── view.js                # 扫雷棋盘、动画与结果绘制
 ├── src/games/sudoku/
-│   └── logic.js               # 数独候选、笔记、排除、撤销与完成判断
+│   ├── logic.js               # 数独候选、笔记、排除、撤销与完成判断
+│   ├── controller.js          # 数独触摸、长按和数字输入
+│   └── view.js                # 数独棋盘、候选区和键盘绘制
 ├── tests/                     # 可在 Node.js 中运行的规则测试
 ├── game.js                    # 当前入口、Canvas 绘制与页面交互
 ├── game.json                  # 小游戏全局配置
 └── project.config.json        # 微信开发者工具项目配置
 ```
 
-项目采用逐步拆分的结构。游戏注册表为后续数独和其他小游戏预留统一入口，游戏规则优先保持为不依赖 Canvas 的纯模块，便于单独测试和复用。当前 `game.js` 仍负责合集页面、Canvas 绘制和部分触摸控制，后续会继续将各游戏的绘制、动画和控制器迁移到对应游戏目录中。
+项目采用逐步拆分的结构。游戏注册表为后续数独和其他小游戏预留统一入口，游戏规则优先保持为不依赖 Canvas 的纯模块，便于单独测试和复用。当前两个游戏已经拥有独立的触摸控制器，`game.js` 负责应用级页面切换和 Canvas 初始化；绘制、动画和剩余状态管理会继续迁移到对应游戏目录中。
 
 数独当前使用固定初始题目，题目生成、难度切换、存档和完整通关反馈会在基础交互稳定后继续移植。
 

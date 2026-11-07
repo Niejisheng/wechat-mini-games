@@ -23,4 +23,10 @@ function listGames() {
   return games.slice()
 }
 
-module.exports = { getGame, listGames }
+function registerGame(game) {
+  if (!game || !game.id || games.some(item => item.id === game.id)) return false
+  games.push({ ...game, status: game.status || 'available' })
+  return true
+}
+
+module.exports = { getGame, listGames, registerGame }

@@ -1,10 +1,17 @@
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
+const { createGameSession } = require('./src/app/game-session')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
+const { createMinesweeperView } = require('./src/games/minesweeper/view')
 const sudokuLogic = require('./src/games/sudoku/logic')
+const { createSudokuView } = require('./src/games/sudoku/view')
+const { touchPosition } = require('./src/shared/input')
+const minesweeperController = require('./src/games/minesweeper/controller')
+const sudokuController = require('./src/games/sudoku/controller')
 const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
 const { roundRect, text } = canvasTools
+const minesweeperView = createMinesweeperView({ ctx, roundRect, text })
 const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
 const scale = info.pixelRatio || 1
 const W = info.windowWidth
@@ -22,7 +29,6 @@ let mineCount = 10
 let boardX = 20
 let boardY = 150
 let cellSize = 36
-let gamePress = null
 let flagAnimation = null
 let gameResult = ''
 let gameStatus = 'idle'
@@ -51,10 +57,10 @@ let sudokuGame = sudokuLogic.gameFromPuzzle()
 let sudokuBoardX = 20
 let sudokuBoardY = 150
 let sudokuCellSize = 36
-let sudokuPress = null
-let sudokuLongPressTimer = null
 let sudokuElapsedSeconds = 0
 let sudokuTimer = null
+let gameSessions = null
+const sudokuView = createSudokuView({ ctx, getWidth: () => W, getHeight: () => H, roundRect, text, logic: sudokuLogic })
 // 难度从低到高，左右箭头分别对应上一级和下一级
 const difficulties = minesweeperLogic.DIFFICULTIES
 const iconImages = {}
@@ -124,51 +130,16 @@ function drawMinesweeper() {
   if (gameMode) { ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H); drawGameBoard(); return }
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
-  drawBackArrow(26, 72)
-  drawMineLogo(W / 2, H * 0.35)
+  minesweeperView.drawBackArrow(26, 72)
+  minesweeperView.drawMineLogo(W / 2, H * 0.35)
   drawDifficultySelector()
   roundRect(44, H * 0.63, W - 88, 52, 26, startPressed ? '#8293cf' : null, startPressed ? '#8293cf' : '#d7d9dc')
   text('开始游戏', W / 2, H * 0.63 + 26, 16, startPressed ? '#ffffff' : '#707174', 'center')
   drawBottomActions()
 }
 
-function drawBackArrow(x, y) {
-  ctx.strokeStyle = '#8a8b8f'
-  ctx.lineWidth = 3
-  ctx.lineCap = 'round'
-  ctx.beginPath(); ctx.moveTo(x + 12, y); ctx.lineTo(x, y + 12); ctx.lineTo(x + 12, y + 24); ctx.stroke()
-}
-
-function drawMineLogo(cx, cy) {
-  ctx.fillStyle = '#8293cf'
-  ctx.beginPath(); ctx.arc(cx, cy, 66, 0, Math.PI * 2); ctx.fill()
-  const teeth = [[0, -78], [55, -55], [78, 0], [55, 55], [0, 78], [-55, 55], [-78, 0], [-55, -55]]
-  teeth.forEach(([dx, dy]) => {
-    ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.rotate(Math.atan2(dy, dx))
-    roundRect(-10, -17, 20, 34, 5, '#8293cf'); ctx.restore()
-  })
-  roundRect(cx - 19, cy - 19, 38, 38, 6, '#ffffff')
-}
-
 function drawDifficultySelector() {
-  const y = H * 0.56
-  drawChevron(72, y, 'left', pressedArrow === 'left')
-  if (difficultyProgress < 1) {
-    // 两阶段动画：旧文字先完整滑出，新文字再开始滑入。
-    // 滑出先慢后快，滑入先快后慢。
-    const outgoingProgress = Math.min(1, difficultyProgress * 2)
-    const incomingProgress = Math.max(0, (difficultyProgress - 0.5) * 2)
-    const outgoing = Math.pow(outgoingProgress, 3)
-    const incoming = 1 - Math.pow(1 - incomingProgress, 3)
-    const direction = difficultyTo > difficultyFrom ? 1 : -1
-    const travel = Math.min(132, W * 0.36)
-    ctx.save(); ctx.globalAlpha = 1 - outgoing
-    text(difficulties[difficultyFrom].name, W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
-    ctx.globalAlpha = incoming
-    text(difficulties[difficultyTo].name, W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
-    ctx.restore()
-  } else text(difficulties[difficultyIndex].name, W / 2, y, 16, '#707174', 'center')
-  drawChevron(W - 72, y, 'right', pressedArrow === 'right')
+  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
 }
 
 function animateDifficulty(nextIndex) {
@@ -226,55 +197,17 @@ function drawBottomActions() {
   })
 }
 
-function drawGear(x, y) {
-  ctx.fillStyle = '#707174'; ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill()
-  for (let i = 0; i < 8; i += 1) { ctx.save(); ctx.translate(x, y); ctx.rotate(i * Math.PI / 4); roundRect(-3, -19, 6, 9, 2, '#707174'); ctx.restore() }
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill()
-}
-function drawCart(x, y) { ctx.strokeStyle = '#707174'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - 12, y - 10); ctx.lineTo(x - 7, y - 10); ctx.lineTo(x - 2, y + 5); ctx.lineTo(x + 12, y + 5); ctx.lineTo(x + 16, y - 6); ctx.lineTo(x - 5, y - 6); ctx.stroke(); ctx.fillStyle = '#707174'; ctx.beginPath(); ctx.arc(x, y + 14, 3, 0, Math.PI * 2); ctx.arc(x + 12, y + 14, 3, 0, Math.PI * 2); ctx.fill() }
-function drawScore(x, y) { ctx.strokeStyle = '#707174'; ctx.lineWidth = 3; [0, 8, 16].forEach((dy) => { ctx.beginPath(); ctx.arc(x - 12, y - 9 + dy, 2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 4, y - 9 + dy); ctx.lineTo(x + 15, y - 9 + dy); ctx.stroke() }) }
-function drawInfo(x, y) { ctx.fillStyle = '#707174'; ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill(); text('i', x, y + 1, 19, '#ffffff', 'center') }
-
 function drawSudoku() {
-  ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H)
-  text('A LITTLE FOCUS, A LITTLE JOY', 24, 24, 9, '#8293a8')
-  text('片刻专注，步步有解', 24, 57, 25, '#27313b')
-  text('.', 24 + ctx.measureText('片刻专注，步步有解').width + 2, 57, 25, '#8293cf')
-  ctx.fillStyle = '#78a994'; ctx.beginPath(); ctx.arc(28, 103, 3.5, 0, Math.PI * 2); ctx.fill()
-  text('中等', 40, 103, 13, '#33414d')
-  text('/', 78, 103, 12, '#a4afb9')
-  text('多想一步', 98, 103, 12, '#8293a8')
-  drawClock(W - 62, 103)
-  text(formatSudokuTime(sudokuElapsedSeconds), W - 22, 103, 13, '#8293a8', 'right')
-  const width = Math.min(W - 24, 360)
-  sudokuCellSize = width / 9
-  sudokuBoardX = (W - width) / 2
-  const boardHeight = sudokuCellSize * 9
-  const centeredBoardY = (H - boardHeight) / 2 + 8
-  const minimumBoardY = 190
-  const maximumBoardY = Math.max(minimumBoardY, H - boardHeight - 96)
-  sudokuBoardY = Math.max(minimumBoardY, Math.min(maximumBoardY, centeredBoardY))
+  sudokuView.drawPageHeader({ elapsed: sudokuElapsedSeconds })
+  const layout = sudokuView.layout()
+  const width = layout.width
+  sudokuCellSize = layout.cellSize
+  sudokuBoardX = layout.boardX
+  sudokuBoardY = layout.boardY
   const filterY = sudokuBoardY - 35
   const filterCaptionY = filterY - 38
-  text('寻找数字', 24, filterCaptionY, 13, '#536b7d')
-  text('点击查看可能位置', 91, filterCaptionY, 10, '#a0adb7')
-  text('角标为剩余数量', W - 24, filterCaptionY, 10, '#8798a5', 'right')
-  sudokuLogic.DIGITS.forEach((digit, index) => {
-    const x = sudokuBoardX + (index + 0.5) * sudokuCellSize
-    const active = sudokuGame.filter === digit
-    const remaining = Math.max(0, 9 - sudokuGame.values.filter(value => value === digit).length)
-    const completed = remaining === 0
-    const cardFill = completed ? '#eef2f4' : active ? '#e5edf9' : '#ffffff'
-    const cardStroke = completed ? '#e2e7eb' : active ? '#8293cf' : '#d8e1e8'
-    const digitColor = completed ? '#a9b4bc' : active ? '#5e78ad' : '#536b7d'
-    roundRect(x - sudokuCellSize * 0.43, filterY - 19, sudokuCellSize * 0.86, 42, 9, completed ? '#e1e7eb' : '#d6e0e8')
-    roundRect(x - sudokuCellSize * 0.43, filterY - 21, sudokuCellSize * 0.86, 42, 9, cardFill, cardStroke)
-    drawSearchDigit(String(digit), x, filterY + 2, digitColor)
-    ctx.fillStyle = completed ? '#87ad9b' : '#ed9a58'; ctx.beginPath(); ctx.arc(x + sudokuCellSize * 0.31, filterY - 15, 7.5, 0, Math.PI * 2); ctx.fill()
-    if (completed) {
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + sudokuCellSize * 0.25, filterY - 15); ctx.lineTo(x + sudokuCellSize * 0.29, filterY - 12); ctx.lineTo(x + sudokuCellSize * 0.36, filterY - 18); ctx.stroke()
-    } else text(String(remaining), x + sudokuCellSize * 0.31, filterY - 15, 8, '#ffffff', 'center')
-  })
+  sudokuView.drawFilterCaption({ y: filterCaptionY })
+  sudokuView.drawFilterCards({ boardX: sudokuBoardX, filterY, size: sudokuCellSize, filter: sudokuGame.filter, values: sudokuGame.values })
   const selected = sudokuGame.selected
   const activeDigit = sudokuGame.filter === null && selected !== null ? sudokuGame.values[selected] : 0
   const errors = sudokuLogic.conflicts(sudokuGame.values)
@@ -284,43 +217,12 @@ function drawSudoku() {
     const possible = sudokuGame.filter !== null && !sudokuGame.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuGame.values, index, sudokuGame.exclusions) & (1 << sudokuGame.filter))
     const related = !searchMode && selected !== null && sudokuLogic.PEERS[selected].includes(index)
     const same = !searchMode && activeDigit && sudokuGame.values[index] === activeDigit
-    ctx.fillStyle = !searchMode && index === selected ? '#dce5f8' : possible ? '#f5e5d7' : same ? '#edf1f5' : '#ffffff'
-    ctx.fillRect(x, y, sudokuCellSize, sudokuCellSize)
-    ctx.strokeStyle = errors.has(index) ? '#d86b4f' : '#d8e0e6'; ctx.lineWidth = 1; ctx.strokeRect(x, y, sudokuCellSize, sudokuCellSize)
-    if (related && index !== selected) { ctx.fillStyle = '#f3f6f8'; ctx.fillRect(x + 1, y + 1, sudokuCellSize - 2, sudokuCellSize - 2) }
     const value = sudokuGame.values[index]
-    if (value) text(String(value), x + sudokuCellSize / 2, y + sudokuCellSize / 2, 21, sudokuGame.givens[index] ? '#33414d' : '#8293cf', 'center')
-    else sudokuLogic.DIGITS.forEach(digit => { if (sudokuGame.notes[index] & (1 << digit)) text(String(digit), x + ((digit - 1) % 3 + 0.5) * sudokuCellSize / 3, y + (Math.floor((digit - 1) / 3) + 0.5) * sudokuCellSize / 3, 8, '#8b9aa6', 'center') })
-    if (searchMode && selected === index) {
-      ctx.strokeStyle = '#8293cf'; ctx.lineWidth = 2
-      ctx.strokeRect(x + 2, y + 2, sudokuCellSize - 4, sudokuCellSize - 4)
-    }
+    sudokuView.drawCell({ index, x, y, size: sudokuCellSize, value, given: sudokuGame.givens[index], notes: sudokuGame.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
   }
-  ctx.strokeStyle = '#95a4ae'; ctx.lineWidth = 2
-  for (let i = 0; i <= 9; i += 3) { ctx.beginPath(); ctx.moveTo(sudokuBoardX + i * sudokuCellSize, sudokuBoardY); ctx.lineTo(sudokuBoardX + i * sudokuCellSize, sudokuBoardY + width); ctx.stroke(); ctx.beginPath(); ctx.moveTo(sudokuBoardX, sudokuBoardY + i * sudokuCellSize); ctx.lineTo(sudokuBoardX + width, sudokuBoardY + i * sudokuCellSize); ctx.stroke() }
-  const keypadY = Math.min(H - 48, sudokuBoardY + width + 56)
-  sudokuLogic.DIGITS.forEach((digit, index) => { const x = sudokuBoardX + (index + 0.5) * sudokuCellSize; const active = sudokuGame.noteMode; roundRect(x - sudokuCellSize * 0.32, keypadY - 18, sudokuCellSize * 0.64, 36, 12, active ? '#f0f3f7' : '#ffffff', '#d7dfe5'); text(String(digit), x, keypadY, 17, '#667483', 'center') })
-  text(sudokuGame.filter ? '淡橙色为候选位置 · 长按候选格排除或恢复' : '点击上方数字寻找候选位置', W / 2, H - 16, 10, '#a4afb9', 'center')
-}
-
-function drawSearchDigit(value, x, y, color) {
-  ctx.font = '19px -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif'
-  ctx.fillStyle = color
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(value, x, y)
-}
-
-function drawClock(x, y) {
-  ctx.strokeStyle = '#8293a8'; ctx.lineWidth = 1.5
-  ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 4); ctx.moveTo(x, y); ctx.lineTo(x + 3, y + 2); ctx.stroke()
-}
-
-function formatSudokuTime(seconds) {
-  const minutes = Math.floor(seconds / 60)
-  const remainder = seconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+  sudokuView.drawGridBorders({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width })
+  sudokuView.drawKeypad({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width, noteMode: sudokuGame.noteMode })
+  sudokuView.drawHint({ filter: sudokuGame.filter })
 }
 
 function startSudokuTimer() {
@@ -334,127 +236,55 @@ function stopSudokuTimer() {
   sudokuTimer = null
 }
 
-function draw() { if (screen === 'home') drawHome(); else if (screen === 'minesweeper') drawMinesweeper(); else drawSudoku() }
+function draw() { if (screen === 'home') drawHome(); else if (gameSessions && gameSessions[screen]) gameSessions[screen].draw(); else if (screen === 'minesweeper') drawMinesweeper(); else drawSudoku() }
 draw()
 
+const minesweeperInput = minesweeperController.createController({
+  width: () => W, height: () => H, draw,
+  isBusy: () => Boolean(failureSequence || winCelebrationRunning),
+  isGameMode: () => gameMode, isHome: () => screen === 'home',
+  getStatus: () => gameStatus, getBoard: () => board, getBoardX: () => boardX,
+  getBoardY: () => boardY, getCellSize: () => cellSize, getBoardRows: () => boardRows,
+  getBoardColumns: () => boardColumns, getMineCount: () => mineCount,
+  countFlags: () => minesweeperLogic.countFlags(board), reveal: revealCell,
+  flagCell: (r, c, x, y) => { flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
+  pressResultArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
+  pressDifficultyArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
+  pressStart: () => { startPressed = true; startPressAt = Date.now(); startLongPress = false; draw(); setTimeout(() => { if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true }, 450) },
+  isStartPressed: () => startPressed,
+  releaseStart: now => { const shouldStart = now - startPressAt < 450 && !startLongPress; startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
+  leaveGame: () => { gameMode = false; gameStatus = 'idle'; gameStartedAt = 0; gameElapsedSeconds = 0; flagAnimation = null; collapseEffects = []; draw() },
+  openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
+  restartResult: x => { if (gameStatus === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
+  releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction)); if (nextIndex !== difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  releaseDifficultyArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction)); if (nextIndex !== difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  clearPressedArrow: () => { pressedArrow = '' }
+})
+
+const sudokuInput = sudokuController.createController({
+  width: () => W, height: () => H, getBoardX: () => sudokuBoardX, getBoardY: () => sudokuBoardY,
+  getCellSize: () => sudokuCellSize, getFilter: () => sudokuGame.filter,
+  leave: () => { sudokuInput.destroy(); stopSudokuTimer(); screen = 'home'; draw() },
+  toggleNoteMode: () => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'note-mode' }); draw() },
+  filter: digit => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'filter', digit }); draw() },
+  select: index => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'select', index }); draw() },
+  input: digit => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: sudokuGame.noteMode ? 'note' : 'input', digit }); draw() },
+  exclude: (index, digit) => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'exclude', index, digit }); draw() }
+})
+
+gameSessions = {
+  minesweeper: createGameSession({ draw: drawMinesweeper, controller: minesweeperInput }),
+  sudoku: createGameSession({ draw: drawSudoku, controller: sudokuInput })
+}
+
 wx.onTouchStart(event => {
-  if (screen === 'sudoku') {
-    if (sudokuLongPressTimer) clearTimeout(sudokuLongPressTimer)
-    const touch = event.touches[0]; const position = touchPosition(touch)
-    sudokuPress = { ...position, at: Date.now(), longPressed: false }
-    sudokuLongPressTimer = setTimeout(() => {
-      if (!sudokuPress || !sudokuGame.filter) return
-      const col = Math.floor((sudokuPress.x - sudokuBoardX) / sudokuCellSize); const row = Math.floor((sudokuPress.y - sudokuBoardY) / sudokuCellSize)
-      if (row >= 0 && row < 9 && col >= 0 && col < 9) { const index = row * 9 + col; sudokuPress.longPressed = true; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'exclude', index, digit: sudokuGame.filter }); draw() }
-    }, 450)
-    return
-  }
-  if (screen !== 'minesweeper') return
-  if (failureSequence) return
-  if (winCelebrationRunning) return
-  const touch = event.touches[0]
-  const { x, y } = touchPosition(touch)
-  if (gameMode) {
-    if (x < 58 && y < 118) { gamePress = { x, y, at: Date.now(), back: true }; return }
-    if (gameStatus !== 'playing' && Math.abs(y - H * 0.89) < 40) {
-      pressedArrow = x < W / 2 ? 'left' : 'right'
-      arrowEffect = { side: pressedArrow, phase: 'press', progress: 0, rotation: 0 }
-      gamePress = { x, y, at: Date.now(), resultArrow: true }
-      draw()
-      return
-    }
-    const col = Math.floor((x - boardX) / cellSize), row = Math.floor((y - boardY) / cellSize)
-    gamePress = { x, y, at: Date.now(), row, col, flagged: false }
-    setTimeout(() => {
-      const press = gamePress
-      if (!press || press.at + 450 > Date.now() || press.flagged || gameStatus !== 'playing') return
-      if (press.row >= 0 && press.row < boardRows && press.col >= 0 && press.col < boardColumns) {
-        const cell = board[press.row][press.col]
-        if (!cell.open) {
-          if (!cell.flag && minesweeperLogic.countFlags(board) >= mineCount) return
-          cell.flag = !cell.flag
-          press.flagged = true
-          flagAnimation = { r: press.row, c: press.col, fromX: press.x, fromY: press.y, at: Date.now() }
-          animateFlagFeedback()
-        }
-      }
-    }, 450)
-    return
-  }
-  if (y >= H * 0.63 && y <= H * 0.63 + 52 && x >= 44 && x <= W - 44) {
-    startPressed = true
-    startPressAt = Date.now()
-    startLongPress = false
-    draw()
-    setTimeout(() => {
-      if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true
-    }, 450)
-    return
-  }
-  if (Math.abs(y - H * 0.56) < 40) {
-    pressedArrow = x < W / 2 ? 'left' : 'right'
-    arrowEffect = { side: pressedArrow, phase: 'press', progress: 0, rotation: 0 }
-    draw()
-  }
+  if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchStart(event); return }
 })
 
 wx.onTouchEnd(event => {
-  if (screen === 'sudoku' && sudokuPress) {
-    if (sudokuLongPressTimer) clearTimeout(sudokuLongPressTimer)
-    const press = sudokuPress; sudokuPress = null
-    const touch = event.changedTouches[0]; const { x, y } = touchPosition(touch)
-    if (press.longPressed) return
-    if (x < 90 && y < 100) { stopSudokuTimer(); screen = 'home'; draw(); return }
-    if (x >= W - 90 && y >= 35 && y <= 85) { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'note-mode' }); draw(); return }
-    const filterY = sudokuBoardY - 35
-    if (Math.abs(y - filterY) < 24 && x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9) { const digit = Math.floor((x - sudokuBoardX) / sudokuCellSize) + 1; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'filter', digit }); draw(); return }
-    if (x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9 && y >= sudokuBoardY && y <= sudokuBoardY + sudokuCellSize * 9) { const col = Math.floor((x - sudokuBoardX) / sudokuCellSize); const row = Math.floor((y - sudokuBoardY) / sudokuCellSize); sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'select', index: row * 9 + col }); draw(); return }
-    const keypadY = Math.min(H - 48, sudokuBoardY + sudokuCellSize * 9 + 56)
-    if (Math.abs(y - keypadY) < 26 && x >= sudokuBoardX && x <= sudokuBoardX + sudokuCellSize * 9) { const digit = Math.floor((x - sudokuBoardX) / sudokuCellSize) + 1; sudokuGame = sudokuLogic.reducer(sudokuGame, { type: sudokuGame.noteMode ? 'note' : 'input', digit }); draw() }
-    return
-  }
-  if (failureSequence) return
-  if (winCelebrationRunning) return
+  if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchEnd(event); return }
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
-  if (gameMode && gamePress) {
-    const press = gamePress; gamePress = null
-    if (press.back) {
-      gameMode = false; gameStatus = 'idle'; gameStartedAt = 0; gameElapsedSeconds = 0
-      flagAnimation = null; collapseEffects = []; draw(); return
-    }
-    if (gameStatus !== 'playing') {
-      if (y >= H * 0.79 && y <= H * 0.79 + 52 && x >= 44 && x <= W - 44) {
-        if (gameStatus === 'lost' && x >= W / 2) replayBoard()
-        else { initBoard(); draw() }
-      } else if (press.resultArrow) {
-        const direction = x < W / 2 ? -1 : 1
-        const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction))
-        const releasedSide = pressedArrow
-        pressedArrow = ''
-        if (nextIndex !== difficultyIndex) {
-          animateArrowRelease(releasedSide)
-          animateDifficulty(nextIndex)
-        } else animateBoundaryShake(releasedSide)
-      }
-      return
-    }
-    const col = Math.floor((press.x - boardX) / cellSize); const row = Math.floor((press.y - boardY) / cellSize)
-    if (row >= 0 && row < boardRows && col >= 0 && col < boardColumns) {
-      const cell = board[row][col]
-      if (!press.flagged && Date.now() - press.at < 450 && !cell.flag) revealCell(row, col)
-      draw()
-    }
-    return
-  }
-  if (screen === 'minesweeper' && startPressed) {
-    const duration = Date.now() - startPressAt
-    const shouldStart = duration < 450 && !startLongPress
-    startPressed = false
-    draw()
-    if (shouldStart) { gameMode = true; initBoard(); draw() }
-    return
-  }
   if (screen === 'home' && y >= 276 && y <= 352) { screen = 'minesweeper'; draw(); return }
   if (screen === 'home' && y >= 374 && y <= 450) { screen = 'sudoku'; sudokuGame = sudokuLogic.gameFromPuzzle(); startSudokuTimer(); draw(); return }
   if (screen === 'minesweeper' && y < 120 && x < 90) { screen = 'home'; draw(); return }
@@ -534,13 +364,6 @@ function animateRevealEffects() {
   draw()
   if (revealEffects.length) setTimeout(animateRevealEffects, 16)
   else revealAnimationRunning = false
-}
-
-function touchPosition(touch) {
-  return {
-    x: touch.clientX ?? touch.pageX ?? touch.x,
-    y: touch.clientY ?? touch.pageY ?? touch.y
-  }
 }
 
 function triggerCollapseEffect(r, c, unopenedNeighbors) {
@@ -708,50 +531,13 @@ function drawGameBoard() {
   boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
   const flagCount = minesweeperLogic.countFlags(board)
   const statusY = 82
-  drawBackArrow(26, 72)
+  minesweeperView.drawBackArrow(26, 72)
   if (mineStatusIcon.width) ctx.drawImage(mineStatusIcon, W / 2 - 25, statusY - 11, 22, 22)
   text(String(mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
   text(`${gameElapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
   for (let r = 0; r < boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
     const cell = board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
-    const effect = collapseEffects.find(item => item.r === r && item.c === c)
-    const revealEffect = revealEffects.find(item => item.r === r && item.c === c)
-    let effectProgress = 0
-    if (effect) effectProgress = Math.max(0, Math.min(1, (Date.now() - effect.at) / 360))
-    const effectAmount = effect ? Math.sin(effectProgress * Math.PI) : 0
-    const effectOffset = effectAmount * 6
-    const effectScale = 1 - effectAmount * 0.2
-    const centerX = x + cellSize / 2
-    const centerY = y + cellSize / 2
-    const inset = gap / 2; const size = cellSize - gap
-    ctx.save()
-    // 旗子数量不足/过多时，周围格子明显收缩并下沉，给出塌陷反馈。
-    if (effect) {
-      ctx.translate(centerX, centerY + effectOffset)
-      ctx.scale(effectScale, effectScale)
-      ctx.translate(-centerX, -centerY)
-      ctx.globalAlpha = 1 - effectAmount * 0.35
-    }
-    const fill = cell.flag ? '#71899e' : (cell.open ? '#f7fafc' : '#e7eff6')
-    if (!cell.open) {
-      roundRect(x + inset, y + inset + 2, size, size, 10, '#c3d2dc')
-      roundRect(x + inset, y + inset, size, size, 10, fill, cell.flag ? '#71899e' : '#c5d4df')
-      ctx.globalAlpha = 0.72
-      roundRect(x + inset + 2, y + inset + 2, size - 4, size - 4, 8, null, '#f8fbfd')
-      ctx.globalAlpha = 1
-    } else {
-      roundRect(x + inset, y + inset, size, size, 10, fill, '#cfdae2')
-    }
-    const flagFx = flagAnimation && flagAnimation.r === r && flagAnimation.c === c ? flagAnimation : null
-    if (cell.flag && !cell.open && flagFx) drawFlyingFlag(flagFx, centerX, centerY)
-    else if (cell.flag && !cell.open) drawFlag(centerX, centerY)
-    else if (cell.open && cell.mine) {
-      if (failureSequence && failureSequence.phase === 'explode' && failureSequence.r === r && failureSequence.c === c) drawMineExplosion(centerX, centerY)
-      else drawMineGlyph(centerX, centerY, cellSize * 0.58, explodedMine && explodedMine.r === r && explodedMine.c === c ? '#d86b4f' : '#5f7180')
-    }
-    else if (cell.open && cell.number) text(String(cell.number), x + cellSize / 2, y + cellSize / 2, 22, ['','#2864a3','#258c55','#7b5aa0','#b06a48'][cell.number] || '#64788c', 'center')
-    if (revealEffect) drawRevealOverlay(revealEffect, centerX, centerY, size)
-    ctx.restore()
+    minesweeperView.drawCell({ cell, x, y, cellSize, gap, row: r, col: c, effect: collapseEffects.find(item => item.r === r && item.c === c), flagFx: flagAnimation && flagAnimation.r === r && flagAnimation.c === c ? flagAnimation : null, exploded: explodedMine && explodedMine.r === r && explodedMine.c === c, failure: failureSequence, revealEffect: revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize, progress: failureSequence ? Math.min(1, Math.max(0, (Date.now() - failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
   }
   if (gameStatus === 'won') {
     if (winCelebrationRunning) drawBoardWinCelebration()
@@ -800,108 +586,9 @@ function drawBoardWinCelebration() {
   ctx.restore()
 }
 
-function drawRevealOverlay(effect, centerX, centerY, size) {
-  const elapsed = Date.now() - effect.at - effect.delay
-  const progress = Math.max(0, Math.min(1, elapsed / effect.duration))
-  let scale
-  if (progress < 0.32) {
-    const p = progress / 0.32
-    scale = 1 + 0.14 * (1 - Math.pow(1 - p, 3))
-  } else {
-    const p = (progress - 0.32) / 0.68
-    scale = 1.14 * Math.max(0, 1 - Math.pow(p, 1.25))
-  }
-  if (scale <= 0) return
-  ctx.save()
-  ctx.translate(centerX, centerY)
-  ctx.scale(scale, scale)
-  ctx.translate(-centerX, -centerY)
-  ctx.globalAlpha = progress > 0.78 ? Math.max(0, 1 - (progress - 0.78) / 0.22) : 1
-  roundRect(centerX - size / 2, centerY - size / 2 + 2, size, size, 10, '#c3d2dc')
-  roundRect(centerX - size / 2, centerY - size / 2, size, size, 10, '#e7eff6', '#c5d4df')
-  ctx.globalAlpha *= 0.72
-  roundRect(centerX - size / 2 + 2, centerY - size / 2 + 2, size - 4, size - 4, 8, null, '#f8fbfd')
-  ctx.restore()
-}
-
-function drawMineExplosion(x, y) {
-  const progress = failureSequence ? Math.min(1, Math.max(0, (Date.now() - failureSequence.at) / 520)) : 1
-  const burst = Math.sin(progress * Math.PI)
-  const radius = cellSize * (0.3 + progress * 0.75)
-  ctx.save()
-  ctx.globalAlpha = 1 - progress * 0.18
-  const mineColor = progress < 0.72 ? '#d86b4f' : '#c95743'
-  drawMineGlyph(x, y, cellSize * (0.46 + burst * 0.16), mineColor)
-  ctx.strokeStyle = '#d9574b'; ctx.lineWidth = Math.max(1.5, cellSize * 0.06); ctx.lineCap = 'round'
-  for (let i = 0; i < 8; i += 1) {
-    const angle = i * Math.PI / 4
-    const inner = radius * 0.45
-    const outer = radius
-    ctx.beginPath(); ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner)
-    ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer); ctx.stroke()
-  }
-  ctx.fillStyle = '#f2a516'
-  for (let i = 0; i < 6; i += 1) {
-    const angle = i * Math.PI / 3 + 0.2
-    const distance = radius * (0.55 + (i % 2) * 0.28)
-    ctx.beginPath(); ctx.arc(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, Math.max(1.5, cellSize * 0.045), 0, Math.PI * 2); ctx.fill()
-  }
-  ctx.restore()
-}
-
-function drawMineGlyph(x, y, size, color) {
-  const core = size * 0.29
-  const toothWidth = size * 0.13
-  const toothLength = size * 0.2
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.fillStyle = color
-  for (let i = 0; i < 8; i += 1) {
-    ctx.save()
-    ctx.rotate(i * Math.PI / 4)
-    roundRect(-toothWidth / 2, -core - toothLength + 1, toothWidth, toothLength, toothWidth * 0.35, color)
-    ctx.restore()
-  }
-  ctx.beginPath(); ctx.arc(0, 0, core, 0, Math.PI * 2); ctx.fill()
-  ctx.fillStyle = '#f7fafc'
-  ctx.beginPath(); ctx.arc(-core * 0.28, -core * 0.3, Math.max(1.2, core * 0.16), 0, Math.PI * 2); ctx.fill()
-  ctx.restore()
-}
-
-function drawFlyingFlag(effect, targetX, targetY) {
-  const p = Math.min(1, Math.max(0, (Date.now() - effect.at) / 520))
-  const eased = 1 - Math.pow(1 - p, 3)
-  const x = effect.fromX + (targetX - effect.fromX) * eased
-  const y = effect.fromY + (targetY - effect.fromY) * eased
-  const radius = 25 * (1 - eased) + 1
-  ctx.save()
-  ctx.globalAlpha = 1 - p * 0.35
-  ctx.strokeStyle = '#8293cf'; ctx.lineWidth = 2
-  for (let i = 0; i < 3; i += 1) {
-    const ring = radius + i * 8
-    ctx.beginPath(); ctx.arc(targetX, targetY, Math.max(2, ring * (1 - p)), 0, Math.PI * 2); ctx.stroke()
-  }
-  ctx.translate(x, y); ctx.scale(1.7 - eased * 0.7, 1.7 - eased * 0.7)
-  drawFlag(0, 0)
-  ctx.restore()
-}
-
 function drawGameResult() {
   const won = gameStatus === 'won'
-  ctx.fillStyle = 'rgba(247, 249, 251, 0.92)'
-  ctx.fillRect(24, H * 0.69, W - 48, 116)
-  if (won) drawWinCelebration()
-  text(won ? '恭喜通关' : '踩到地雷了', W / 2, H * 0.73, 22, won ? '#258c55' : '#b06a48', 'center')
-  text(won ? '所有安全方块都已找到' : '雷区已揭示，重新开始试试', W / 2, H * 0.77, 13, '#667483', 'center')
-  roundRect(44, H * 0.79, W - 88, 52, 26, '#8293cf')
-  if (won) text('再来一局', W / 2, H * 0.79 + 26, 16, '#ffffff', 'center')
-  else {
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(W / 2, H * 0.79 + 12); ctx.lineTo(W / 2, H * 0.79 + 40); ctx.stroke()
-    text('再来一局', W * 0.32, H * 0.79 + 26, 15, '#ffffff', 'center')
-    text('再试一次', W * 0.68, H * 0.79 + 26, 15, '#ffffff', 'center')
-  }
-  drawResultDifficultySelector()
+  minesweeperView.drawResultPanel({ width: W, height: H, won, drawCelebration: drawWinCelebration, drawDifficultySelector: drawResultDifficultySelector })
 }
 
 function startWinCelebration() {
@@ -919,74 +606,11 @@ function animateWinCelebration() {
 }
 
 function drawWinCelebration() {
-  if (!winCelebration) return
-  const elapsed = Date.now() - winCelebration.at
-  const progress = Math.min(1, elapsed / 2800)
-  const centerX = W / 2
-  const centerY = H * 0.735
-  const pulse = 0.5 + Math.sin(progress * Math.PI * 5) * 0.5
-  const fade = progress > 0.82 ? 1 - (progress - 0.82) / 0.18 : 1
-  ctx.save()
-  ctx.globalAlpha = 0.12 + pulse * 0.06
-  ctx.fillStyle = '#9bc6ac'
-  ctx.beginPath(); ctx.arc(centerX, centerY, 32 + pulse * 7, 0, Math.PI * 2); ctx.fill()
-  ctx.globalAlpha = 0.28 * fade
-  ctx.strokeStyle = '#78a994'; ctx.lineWidth = 2
-  ;[42 + progress * 28, 56 + progress * 34].forEach(radius => { ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.stroke() })
-  ctx.globalAlpha = 0.22 * fade
-  ctx.strokeStyle = '#b5d3c1'; ctx.lineWidth = 1
-  for (let i = 0; i < 12; i += 1) {
-    const angle = i * Math.PI * 2 / 12
-    const inner = 30 + pulse * 5
-    const outer = inner + 13 + Math.min(1, progress * 2) * 18
-    ctx.beginPath(); ctx.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner)
-    ctx.lineTo(centerX + Math.cos(angle) * outer, centerY + Math.sin(angle) * outer); ctx.stroke()
-  }
-  const particles = ['#78a994', '#8293cf', '#edb36d', '#b5c9d9', '#9ebcae', '#d89a72']
-  particles.forEach((color, i) => {
-    const angle = i * Math.PI * 2 / particles.length + 0.25
-    const distance = 24 + progress * 88
-    const x = centerX + Math.cos(angle) * distance
-    const y = centerY + Math.sin(angle) * distance + progress * progress * 20
-    const size = 2 + (i % 3)
-    ctx.globalAlpha = (1 - progress) * 0.82
-    ctx.fillStyle = color
-    ctx.save(); ctx.translate(x, y); ctx.rotate(progress * 3 + i)
-    if (i % 2) { ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.fill() }
-    else { ctx.beginPath(); ctx.moveTo(0, -size * 1.5); ctx.lineTo(size * 1.2, size); ctx.lineTo(-size * 1.2, size); ctx.closePath(); ctx.fill() }
-    ctx.restore()
-  })
-  ctx.globalAlpha = 0.86 + pulse * 0.1
-  ctx.fillStyle = '#78a994'
-  ctx.beginPath(); ctx.arc(centerX, centerY, 17 + pulse * 2, 0, Math.PI * 2); ctx.fill()
-  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'
-  ctx.beginPath(); ctx.moveTo(centerX - 7, centerY); ctx.lineTo(centerX - 2, centerY + 5); ctx.lineTo(centerX + 8, centerY - 6); ctx.stroke()
-  ctx.restore()
+  minesweeperView.drawWinCelebration({ startedAt: winCelebration && winCelebration.at, width: W, height: H })
 }
 
 function drawResultDifficultySelector() {
-  const y = H * 0.89
-  drawChevron(72, y, 'left', pressedArrow === 'left')
-  if (difficultyProgress < 1) {
-    const outgoingProgress = Math.min(1, difficultyProgress * 2)
-    const incomingProgress = Math.max(0, (difficultyProgress - 0.5) * 2)
-    const outgoing = Math.pow(outgoingProgress, 3)
-    const incoming = 1 - Math.pow(1 - incomingProgress, 3)
-    const direction = difficultyTo > difficultyFrom ? 1 : -1
-    const travel = Math.min(132, W * 0.36)
-    ctx.save(); ctx.globalAlpha = 1 - outgoing
-    text(difficulties[difficultyFrom].name, W / 2 - direction * outgoing * travel, y, 16, '#707174', 'center')
-    ctx.globalAlpha = incoming
-    text(difficulties[difficultyTo].name, W / 2 + direction * (1 - incoming) * travel, y, 16, '#707174', 'center')
-    ctx.restore()
-  } else text(difficulties[difficultyIndex].name, W / 2, y, 16, '#707174', 'center')
-  drawChevron(W - 72, y, 'right', pressedArrow === 'right')
-}
-
-function drawFlag(x, y) {
-  ctx.strokeStyle = '#f2a516'; ctx.fillStyle = '#f2a516'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.moveTo(x - 5, y + 10); ctx.lineTo(x - 5, y - 11); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(x - 4, y - 10); ctx.lineTo(x + 9, y - 5); ctx.lineTo(x - 4, y); ctx.closePath(); ctx.fill()
+  minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
 }
 
 function animateArrowRelease(side) {

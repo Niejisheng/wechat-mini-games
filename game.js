@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
 const { createMinesweeperView } = require('./src/games/minesweeper/view')
-const { createMinesweeperGame } = require('./src/games/minesweeper/game')
+const { createMinesweeperGame, createMinesweeperRuntime } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
 const { createSudokuGame, createSudokuRuntime } = require('./src/games/sudoku/game')
@@ -23,19 +23,14 @@ ctx.scale(scale, scale)
 
 let screen = 'home'
 let gameMode = false
-let board = []
+const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
-let boardRows = 9
-let mineCount = 10
 let boardX = 20
 let boardY = 150
 let cellSize = 36
 let flagAnimation = null
 let gameResult = ''
-let gameStatus = 'idle'
-let gameStartedAt = 0
-let gameElapsedSeconds = 0
-let difficultyIndex = 0
+
 let pressedArrow = ''
 let difficultyAnimating = false
 let difficultyFrom = 0
@@ -139,13 +134,13 @@ function drawMinesweeper() {
 }
 
 function drawDifficultySelector() {
-  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
+  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
 }
 
 function animateDifficulty(nextIndex) {
-  difficultyFrom = difficultyIndex
+  difficultyFrom = minesweeperRuntime.difficultyIndex
   difficultyTo = nextIndex
-  difficultyIndex = nextIndex
+  minesweeperRuntime.difficultyIndex = nextIndex
   difficultyProgress = 0
   const start = Date.now()
   function frame() {
@@ -240,21 +235,21 @@ const minesweeperInput = minesweeperController.createController({
   width: () => W, height: () => H, draw,
   isBusy: () => Boolean(failureSequence || winCelebrationRunning),
   isGameMode: () => gameMode, isHome: () => screen === 'home',
-  getStatus: () => gameStatus, getBoard: () => board, getBoardX: () => boardX,
-  getBoardY: () => boardY, getCellSize: () => cellSize, getBoardRows: () => boardRows,
-  getBoardColumns: () => boardColumns, getMineCount: () => mineCount,
-  countFlags: () => minesweeperLogic.countFlags(board), reveal: revealCell,
+  getStatus: () => minesweeperRuntime.status, getBoard: () => minesweeperRuntime.board, getBoardX: () => boardX,
+  getBoardY: () => boardY, getCellSize: () => cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
+  getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
+  countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
   flagCell: (r, c, x, y) => { flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
   pressResultArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressDifficultyArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressStart: () => { startPressed = true; startPressAt = Date.now(); startLongPress = false; draw(); setTimeout(() => { if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true }, 450) },
   isStartPressed: () => startPressed,
   releaseStart: now => { const shouldStart = now - startPressAt < 450 && !startLongPress; startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
-  leaveGame: () => { gameMode = false; gameStatus = 'idle'; gameStartedAt = 0; gameElapsedSeconds = 0; flagAnimation = null; collapseEffects = []; draw() },
+  leaveGame: () => { gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; flagAnimation = null; collapseEffects = []; draw() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
-  restartResult: x => { if (gameStatus === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
-  releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction)); if (nextIndex !== difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
-  releaseDifficultyArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction)); if (nextIndex !== difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
+  releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  releaseDifficultyArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
   clearPressedArrow: () => { pressedArrow = '' }
 })
 
@@ -294,10 +289,10 @@ wx.onTouchEnd(event => {
   if (screen === 'minesweeper' && y < 120 && x < 90) { screen = 'home'; draw(); return }
   if (screen === 'minesweeper' && Math.abs(y - H * 0.56) < 40) {
     const direction = x < W / 2 ? -1 : 1
-    const nextIndex = Math.max(0, Math.min(difficulties.length - 1, difficultyIndex + direction))
+    const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction))
     const releasedSide = pressedArrow
     pressedArrow = ''
-    if (nextIndex !== difficultyIndex) {
+    if (nextIndex !== minesweeperRuntime.difficultyIndex) {
       animateArrowRelease(releasedSide)
       animateDifficulty(nextIndex)
     } else {
@@ -310,18 +305,18 @@ wx.onTouchEnd(event => {
 })
 
 function revealCell(r, c) {
-  if (gameStatus !== 'playing') return
+  if (minesweeperRuntime.status !== 'playing') return
   const animation = arguments[2] || null
-  const cell = board[r][c]
+  const cell = minesweeperRuntime.board[r][c]
   if (cell.open) {
     // 只有数字格支持按周围旗子数量展开；已打开的空白格不响应。
     if (cell.number === 0) return
-    const around = neighbors(r, c); const flags = around.filter(([nr, nc]) => board[nr][nc].flag).length
+    const around = neighbors(r, c); const flags = around.filter(([nr, nc]) => minesweeperRuntime.board[nr][nc].flag).length
     if (flags === cell.number) {
       const animation = { nextDelay: 0 }
-      around.forEach(([nr, nc]) => { if (!board[nr][nc].open && !board[nr][nc].flag) revealCell(nr, nc, animation) })
+      around.forEach(([nr, nc]) => { if (!minesweeperRuntime.board[nr][nc].open && !minesweeperRuntime.board[nr][nc].flag) revealCell(nr, nc, animation) })
     } else {
-      triggerCollapseEffect(r, c, around.filter(([nr, nc]) => !board[nr][nc].open && !board[nr][nc].flag))
+      triggerCollapseEffect(r, c, around.filter(([nr, nc]) => !minesweeperRuntime.board[nr][nc].open && !minesweeperRuntime.board[nr][nc].flag))
     }
     return
   }
@@ -329,8 +324,8 @@ function revealCell(r, c) {
     triggerFailureSequence(r, c)
     return
   }
-  if (!gameStartedAt) {
-    gameStartedAt = Date.now()
+  if (!minesweeperRuntime.startedAt) {
+    minesweeperRuntime.startedAt = Date.now()
     updateGameTimer()
   }
   cell.open = true
@@ -338,12 +333,12 @@ function revealCell(r, c) {
   if (cell.number === 0) {
     const nextAnimation = animation || { nextDelay: 0 }
     if (!animation) scheduleRevealEffect(r, c, nextAnimation)
-    neighbors(r, c).forEach(([nr, nc]) => { if (!board[nr][nc].open) revealCell(nr, nc, nextAnimation) })
+    neighbors(r, c).forEach(([nr, nc]) => { if (!minesweeperRuntime.board[nr][nc].open) revealCell(nr, nc, nextAnimation) })
   }
-  const safeRemaining = minesweeperLogic.countSafeRemaining(board)
+  const safeRemaining = minesweeperLogic.countSafeRemaining(minesweeperRuntime.board)
   if (safeRemaining === 0) {
-    gameStatus = 'won'
-    board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
+    minesweeperRuntime.status = 'won'
+    minesweeperRuntime.board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
     startWinCelebration()
   }
 }
@@ -429,12 +424,12 @@ function triggerFailureSequence(r, c) {
   revealEffects = []
   revealAnimationRunning = false
   const revealQueue = []
-  board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
+  minesweeperRuntime.board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
     if (cell.mine && !(rowIndex === r && colIndex === c) && !cell.flag) revealQueue.push([rowIndex, colIndex])
   }))
-  board[r][c].open = true
+  minesweeperRuntime.board[r][c].open = true
   explodedMine = { r, c }
-  gameStatus = 'failing'
+  minesweeperRuntime.status = 'failing'
   failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
   playFailureClick()
   draw()
@@ -458,14 +453,14 @@ function advanceFailureSequence() {
   }
   const next = failureSequence.revealQueue[failureSequence.revealed]
   if (next) {
-    board[next[0]][next[1]].open = true
+    minesweeperRuntime.board[next[0]][next[1]].open = true
     failureSequence.revealed += 1
     draw()
     setTimeout(advanceFailureSequence, 72)
     return
   }
   failureSequence = null
-  gameStatus = 'lost'
+  minesweeperRuntime.status = 'lost'
   draw()
 }
 
@@ -478,22 +473,22 @@ function animateFailureFrame() {
 }
 
 function initBoard() {
-  const difficulty = difficulties[difficultyIndex]
-  boardRows = difficulty.rows
-  mineCount = difficulty.mines
+  const difficulty = difficulties[minesweeperRuntime.difficultyIndex]
+  minesweeperRuntime.boardRows = difficulty.rows
+  minesweeperRuntime.mineCount = difficulty.mines
   failureSequence = null
   explodedMine = null
   winCelebration = null
   winCelebrationRunning = false
   revealEffects = []
   revealAnimationRunning = false
-  gameStatus = 'playing'
-  gameStartedAt = 0
-  gameElapsedSeconds = 0
+  minesweeperRuntime.status = 'playing'
+  minesweeperRuntime.startedAt = 0
+  minesweeperRuntime.elapsedSeconds = 0
   collapseEffects = []
   flagAnimation = null
   numberFeedback = null
-  board = minesweeperLogic.createBoard(difficultyIndex)
+  minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex)
 }
 
 function replayBoard() {
@@ -503,20 +498,20 @@ function replayBoard() {
   winCelebrationRunning = false
   revealEffects = []
   revealAnimationRunning = false
-  gameStatus = 'playing'
-  gameStartedAt = 0
-  gameElapsedSeconds = 0
+  minesweeperRuntime.status = 'playing'
+  minesweeperRuntime.startedAt = 0
+  minesweeperRuntime.elapsedSeconds = 0
   collapseEffects = []
   numberFeedback = null
   flagAnimation = null
-  board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
+  minesweeperRuntime.board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
   draw()
 }
 
-function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, boardRows, boardColumns) }
+function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, minesweeperRuntime.boardRows, boardColumns) }
 function updateGameTimer() {
-  if (!gameStartedAt || gameStatus !== 'playing') return
-  gameElapsedSeconds = Math.floor((Date.now() - gameStartedAt) / 1000)
+  if (!minesweeperRuntime.startedAt || minesweeperRuntime.status !== 'playing') return
+  minesweeperRuntime.elapsedSeconds = Math.floor((Date.now() - minesweeperRuntime.startedAt) / 1000)
   draw()
   setTimeout(updateGameTimer, 1000)
 }
@@ -526,36 +521,36 @@ function drawGameBoard() {
   const reservedBottom = 148
   const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
   const widthCellSize = maxWidth / boardColumns
-  const heightCellSize = availableHeight / boardRows
+  const heightCellSize = availableHeight / minesweeperRuntime.boardRows
   cellSize = Math.min(widthCellSize, heightCellSize)
   const width = cellSize * boardColumns
   const gap = Math.max(4, width * 0.012)
   boardX = (W - width) / 2
-  const boardHeight = cellSize * boardRows
+  const boardHeight = cellSize * minesweeperRuntime.boardRows
   boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
-  const flagCount = minesweeperLogic.countFlags(board)
+  const flagCount = minesweeperLogic.countFlags(minesweeperRuntime.board)
   const statusY = 82
   minesweeperView.drawBackArrow(26, 72)
   if (mineStatusIcon.width) ctx.drawImage(mineStatusIcon, W / 2 - 25, statusY - 11, 22, 22)
-  text(String(mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
-  text(`${gameElapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
-  for (let r = 0; r < boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
-    const cell = board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
+  text(String(minesweeperRuntime.mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
+  text(`${minesweeperRuntime.elapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
+  for (let r = 0; r < minesweeperRuntime.boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
+    const cell = minesweeperRuntime.board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
     minesweeperView.drawCell({ cell, x, y, cellSize, gap, row: r, col: c, effect: collapseEffects.find(item => item.r === r && item.c === c), flagFx: flagAnimation && flagAnimation.r === r && flagAnimation.c === c ? flagAnimation : null, exploded: explodedMine && explodedMine.r === r && explodedMine.c === c, failure: failureSequence, revealEffect: revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize, progress: failureSequence ? Math.min(1, Math.max(0, (Date.now() - failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
   }
-  if (gameStatus === 'won') {
+  if (minesweeperRuntime.status === 'won') {
     if (winCelebrationRunning) drawBoardWinCelebration()
     else drawGameResult()
-  } else if (gameStatus === 'lost') drawGameResult()
+  } else if (minesweeperRuntime.status === 'lost') drawGameResult()
 }
 
 function drawBoardWinCelebration() {
   if (!winCelebration) return
   const progress = Math.min(1, (Date.now() - winCelebration.at) / 2800)
   const centerX = boardX + boardColumns * cellSize / 2
-  const centerY = boardY + boardRows * cellSize / 2
+  const centerY = boardY + minesweeperRuntime.boardRows * cellSize / 2
   const boardWidth = boardColumns * cellSize
-  const boardHeight = boardRows * cellSize
+  const boardHeight = minesweeperRuntime.boardRows * cellSize
   const pulse = 0.5 + Math.sin(progress * Math.PI * 6) * 0.5
   ctx.save()
   ctx.fillStyle = 'rgba(247, 249, 251, 0.42)'
@@ -591,7 +586,7 @@ function drawBoardWinCelebration() {
 }
 
 function drawGameResult() {
-  const won = gameStatus === 'won'
+  const won = minesweeperRuntime.status === 'won'
   minesweeperView.drawResultPanel({ width: W, height: H, won, drawCelebration: drawWinCelebration, drawDifficultySelector: drawResultDifficultySelector })
 }
 
@@ -614,7 +609,7 @@ function drawWinCelebration() {
 }
 
 function drawResultDifficultySelector() {
-  minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
+  minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
 }
 
 function animateArrowRelease(side) {

@@ -1,7 +1,7 @@
 const { createGameSession } = require('../../app/game-session')
 
 function createSudokuRuntime(logic) {
-  const runtime = { game: logic.gameFromPuzzle(), elapsedSeconds: 0, timer: null }
+  const runtime = { game: logic.gameFromPuzzle(), elapsedSeconds: 0, timer: null, boardX: 20, boardY: 150, cellSize: 36 }
   runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); runtime.elapsedSeconds = 0; runtime.timer = setInterval(() => { if (isActive() && !runtime.game.won) { runtime.elapsedSeconds += 1; draw() } }, 1000) }
   runtime.stopTimer = () => { if (runtime.timer) clearInterval(runtime.timer); runtime.timer = null }
   return runtime

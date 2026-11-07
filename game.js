@@ -27,9 +27,6 @@ const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
 
 const sudokuRuntime = createSudokuRuntime(sudokuLogic)
-let sudokuBoardX = 20
-let sudokuBoardY = 150
-let sudokuCellSize = 36
 let gameSessions = null
 const sudokuView = createSudokuView({ ctx, getWidth: () => W, getHeight: () => H, roundRect, text, logic: sudokuLogic })
 // 难度从低到高，左右箭头分别对应上一级和下一级
@@ -173,27 +170,27 @@ function drawSudoku() {
   sudokuView.drawPageHeader({ elapsed: sudokuRuntime.elapsedSeconds })
   const layout = sudokuView.layout()
   const width = layout.width
-  sudokuCellSize = layout.cellSize
-  sudokuBoardX = layout.boardX
-  sudokuBoardY = layout.boardY
-  const filterY = sudokuBoardY - 35
+  sudokuRuntime.cellSize = layout.cellSize
+  sudokuRuntime.boardX = layout.boardX
+  sudokuRuntime.boardY = layout.boardY
+  const filterY = sudokuRuntime.boardY - 35
   const filterCaptionY = filterY - 38
   sudokuView.drawFilterCaption({ y: filterCaptionY })
-  sudokuView.drawFilterCards({ boardX: sudokuBoardX, filterY, size: sudokuCellSize, filter: sudokuRuntime.game.filter, values: sudokuRuntime.game.values })
+  sudokuView.drawFilterCards({ boardX: sudokuRuntime.boardX, filterY, size: sudokuRuntime.cellSize, filter: sudokuRuntime.game.filter, values: sudokuRuntime.game.values })
   const selected = sudokuRuntime.game.selected
   const activeDigit = sudokuRuntime.game.filter === null && selected !== null ? sudokuRuntime.game.values[selected] : 0
   const errors = sudokuLogic.conflicts(sudokuRuntime.game.values)
   const searchMode = sudokuRuntime.game.filter !== null
   for (let row = 0; row < 9; row += 1) for (let col = 0; col < 9; col += 1) {
-    const index = row * 9 + col; const x = sudokuBoardX + col * sudokuCellSize; const y = sudokuBoardY + row * sudokuCellSize
+    const index = row * 9 + col; const x = sudokuRuntime.boardX + col * sudokuRuntime.cellSize; const y = sudokuRuntime.boardY + row * sudokuRuntime.cellSize
     const possible = sudokuRuntime.game.filter !== null && !sudokuRuntime.game.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuRuntime.game.values, index, sudokuRuntime.game.exclusions) & (1 << sudokuRuntime.game.filter))
     const related = !searchMode && selected !== null && sudokuLogic.PEERS[selected].includes(index)
     const same = !searchMode && activeDigit && sudokuRuntime.game.values[index] === activeDigit
     const value = sudokuRuntime.game.values[index]
-    sudokuView.drawCell({ index, x, y, size: sudokuCellSize, value, given: sudokuRuntime.game.givens[index], notes: sudokuRuntime.game.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
+    sudokuView.drawCell({ index, x, y, size: sudokuRuntime.cellSize, value, given: sudokuRuntime.game.givens[index], notes: sudokuRuntime.game.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
   }
-  sudokuView.drawGridBorders({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width })
-  sudokuView.drawKeypad({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width, noteMode: sudokuRuntime.game.noteMode })
+  sudokuView.drawGridBorders({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width })
+  sudokuView.drawKeypad({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width, noteMode: sudokuRuntime.game.noteMode })
   sudokuView.drawHint({ filter: sudokuRuntime.game.filter })
 }
 
@@ -231,8 +228,8 @@ const minesweeperInput = minesweeperController.createController({
 })
 
 const sudokuInput = sudokuController.createController({
-  width: () => W, height: () => H, getBoardX: () => sudokuBoardX, getBoardY: () => sudokuBoardY,
-  getCellSize: () => sudokuCellSize, getFilter: () => sudokuRuntime.game.filter,
+  width: () => W, height: () => H, getBoardX: () => sudokuRuntime.boardX, getBoardY: () => sudokuRuntime.boardY,
+  getCellSize: () => sudokuRuntime.cellSize, getFilter: () => sudokuRuntime.game.filter,
   leave: () => { sudokuInput.destroy(); stopSudokuTimer(); screen = 'home'; draw() },
   toggleNoteMode: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'note-mode' }); draw() },
   filter: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'filter', digit }); draw() },

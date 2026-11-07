@@ -6,7 +6,7 @@ const { createMinesweeperView } = require('./src/games/minesweeper/view')
 const { createMinesweeperGame } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
-const { createSudokuGame } = require('./src/games/sudoku/game')
+const { createSudokuGame, createSudokuRuntime } = require('./src/games/sudoku/game')
 const { touchPosition } = require('./src/shared/input')
 const minesweeperController = require('./src/games/minesweeper/controller')
 const sudokuController = require('./src/games/sudoku/controller')
@@ -54,12 +54,10 @@ let explodedMine = null
 let failureAudioContext = null
 let winCelebration = null
 let winCelebrationRunning = false
-let sudokuGame = sudokuLogic.gameFromPuzzle()
+const sudokuRuntime = createSudokuRuntime(sudokuLogic)
 let sudokuBoardX = 20
 let sudokuBoardY = 150
 let sudokuCellSize = 36
-let sudokuElapsedSeconds = 0
-let sudokuTimer = null
 let gameSessions = null
 const sudokuView = createSudokuView({ ctx, getWidth: () => W, getHeight: () => H, roundRect, text, logic: sudokuLogic })
 // 难度从低到高，左右箭头分别对应上一级和下一级
@@ -200,7 +198,7 @@ function drawBottomActions() {
 }
 
 function drawSudoku() {
-  sudokuView.drawPageHeader({ elapsed: sudokuElapsedSeconds })
+  sudokuView.drawPageHeader({ elapsed: sudokuRuntime.elapsedSeconds })
   const layout = sudokuView.layout()
   const width = layout.width
   sudokuCellSize = layout.cellSize
@@ -209,33 +207,30 @@ function drawSudoku() {
   const filterY = sudokuBoardY - 35
   const filterCaptionY = filterY - 38
   sudokuView.drawFilterCaption({ y: filterCaptionY })
-  sudokuView.drawFilterCards({ boardX: sudokuBoardX, filterY, size: sudokuCellSize, filter: sudokuGame.filter, values: sudokuGame.values })
-  const selected = sudokuGame.selected
-  const activeDigit = sudokuGame.filter === null && selected !== null ? sudokuGame.values[selected] : 0
-  const errors = sudokuLogic.conflicts(sudokuGame.values)
-  const searchMode = sudokuGame.filter !== null
+  sudokuView.drawFilterCards({ boardX: sudokuBoardX, filterY, size: sudokuCellSize, filter: sudokuRuntime.game.filter, values: sudokuRuntime.game.values })
+  const selected = sudokuRuntime.game.selected
+  const activeDigit = sudokuRuntime.game.filter === null && selected !== null ? sudokuRuntime.game.values[selected] : 0
+  const errors = sudokuLogic.conflicts(sudokuRuntime.game.values)
+  const searchMode = sudokuRuntime.game.filter !== null
   for (let row = 0; row < 9; row += 1) for (let col = 0; col < 9; col += 1) {
     const index = row * 9 + col; const x = sudokuBoardX + col * sudokuCellSize; const y = sudokuBoardY + row * sudokuCellSize
-    const possible = sudokuGame.filter !== null && !sudokuGame.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuGame.values, index, sudokuGame.exclusions) & (1 << sudokuGame.filter))
+    const possible = sudokuRuntime.game.filter !== null && !sudokuRuntime.game.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuRuntime.game.values, index, sudokuRuntime.game.exclusions) & (1 << sudokuRuntime.game.filter))
     const related = !searchMode && selected !== null && sudokuLogic.PEERS[selected].includes(index)
-    const same = !searchMode && activeDigit && sudokuGame.values[index] === activeDigit
-    const value = sudokuGame.values[index]
-    sudokuView.drawCell({ index, x, y, size: sudokuCellSize, value, given: sudokuGame.givens[index], notes: sudokuGame.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
+    const same = !searchMode && activeDigit && sudokuRuntime.game.values[index] === activeDigit
+    const value = sudokuRuntime.game.values[index]
+    sudokuView.drawCell({ index, x, y, size: sudokuCellSize, value, given: sudokuRuntime.game.givens[index], notes: sudokuRuntime.game.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
   }
   sudokuView.drawGridBorders({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width })
-  sudokuView.drawKeypad({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width, noteMode: sudokuGame.noteMode })
-  sudokuView.drawHint({ filter: sudokuGame.filter })
+  sudokuView.drawKeypad({ boardX: sudokuBoardX, boardY: sudokuBoardY, size: sudokuCellSize, boardWidth: width, noteMode: sudokuRuntime.game.noteMode })
+  sudokuView.drawHint({ filter: sudokuRuntime.game.filter })
 }
 
 function startSudokuTimer() {
-  if (sudokuTimer) clearInterval(sudokuTimer)
-  sudokuElapsedSeconds = 0
-  sudokuTimer = setInterval(() => { if (screen === 'sudoku' && !sudokuGame.won) { sudokuElapsedSeconds += 1; draw() } }, 1000)
+  sudokuRuntime.startTimer(() => screen === 'sudoku', draw)
 }
 
 function stopSudokuTimer() {
-  if (sudokuTimer) clearInterval(sudokuTimer)
-  sudokuTimer = null
+  sudokuRuntime.stopTimer()
 }
 
 function draw() { if (screen === 'home') drawHome(); else if (gameSessions && gameSessions[screen]) gameSessions[screen].draw(); else if (screen === 'minesweeper') drawMinesweeper(); else drawSudoku() }
@@ -265,13 +260,13 @@ const minesweeperInput = minesweeperController.createController({
 
 const sudokuInput = sudokuController.createController({
   width: () => W, height: () => H, getBoardX: () => sudokuBoardX, getBoardY: () => sudokuBoardY,
-  getCellSize: () => sudokuCellSize, getFilter: () => sudokuGame.filter,
+  getCellSize: () => sudokuCellSize, getFilter: () => sudokuRuntime.game.filter,
   leave: () => { sudokuInput.destroy(); stopSudokuTimer(); screen = 'home'; draw() },
-  toggleNoteMode: () => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'note-mode' }); draw() },
-  filter: digit => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'filter', digit }); draw() },
-  select: index => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'select', index }); draw() },
-  input: digit => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: sudokuGame.noteMode ? 'note' : 'input', digit }); draw() },
-  exclude: (index, digit) => { sudokuGame = sudokuLogic.reducer(sudokuGame, { type: 'exclude', index, digit }); draw() }
+  toggleNoteMode: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'note-mode' }); draw() },
+  filter: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'filter', digit }); draw() },
+  select: index => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'select', index }); draw() },
+  input: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: sudokuRuntime.game.noteMode ? 'note' : 'input', digit }); draw() },
+  exclude: (index, digit) => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'exclude', index, digit }); draw() }
 })
 
 gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput }))
@@ -291,7 +286,7 @@ wx.onTouchEnd(event => {
     const game = y >= 276 && index >= 0 && index < gameRegistry.listGames().length ? gameRegistry.listGames()[index] : null
     if (game && y <= 352 + index * 98) {
       screen = game.id
-      if (game.id === 'sudoku') { sudokuGame = sudokuLogic.gameFromPuzzle(); startSudokuTimer() }
+      if (game.id === 'sudoku') { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(); startSudokuTimer() }
       draw()
       return
     }

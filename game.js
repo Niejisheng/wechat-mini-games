@@ -28,7 +28,6 @@ const boardColumns = minesweeperLogic.BOARD_COLUMNS
 let boardX = 20
 let boardY = 150
 let cellSize = 36
-let flagAnimation = null
 let gameResult = ''
 
 let pressedArrow = ''
@@ -40,15 +39,7 @@ let arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
 let startPressed = false
 let startPressAt = 0
 let startLongPress = false
-let collapseEffects = []
-let numberFeedback = null
-let revealEffects = []
-let revealAnimationRunning = false
-let failureSequence = null
-let explodedMine = null
 let failureAudioContext = null
-let winCelebration = null
-let winCelebrationRunning = false
 const sudokuRuntime = createSudokuRuntime(sudokuLogic)
 let sudokuBoardX = 20
 let sudokuBoardY = 150
@@ -233,19 +224,19 @@ draw()
 
 const minesweeperInput = minesweeperController.createController({
   width: () => W, height: () => H, draw,
-  isBusy: () => Boolean(failureSequence || winCelebrationRunning),
+  isBusy: () => Boolean(minesweeperRuntime.failureSequence || minesweeperRuntime.winCelebrationRunning),
   isGameMode: () => gameMode, isHome: () => screen === 'home',
   getStatus: () => minesweeperRuntime.status, getBoard: () => minesweeperRuntime.board, getBoardX: () => boardX,
   getBoardY: () => boardY, getCellSize: () => cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
   countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
-  flagCell: (r, c, x, y) => { flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
+  flagCell: (r, c, x, y) => { minesweeperRuntime.flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
   pressResultArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressDifficultyArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressStart: () => { startPressed = true; startPressAt = Date.now(); startLongPress = false; draw(); setTimeout(() => { if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true }, 450) },
   isStartPressed: () => startPressed,
   releaseStart: now => { const shouldStart = now - startPressAt < 450 && !startLongPress; startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
-  leaveGame: () => { gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; flagAnimation = null; collapseEffects = []; draw() },
+  leaveGame: () => { gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
   releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -344,38 +335,38 @@ function revealCell(r, c) {
 }
 
 function scheduleRevealEffect(r, c, animation) {
-  revealEffects.push({ r, c, at: Date.now(), delay: animation.nextDelay, duration: 360 })
+  minesweeperRuntime.revealEffects.push({ r, c, at: Date.now(), delay: animation.nextDelay, duration: 360 })
   animation.nextDelay += 42
-  if (!revealAnimationRunning) {
-    revealAnimationRunning = true
+  if (!minesweeperRuntime.revealAnimationRunning) {
+    minesweeperRuntime.revealAnimationRunning = true
     animateRevealEffects()
   }
 }
 
 function animateRevealEffects() {
-  if (!revealEffects.length) {
-    revealAnimationRunning = false
+  if (!minesweeperRuntime.revealEffects.length) {
+    minesweeperRuntime.revealAnimationRunning = false
     draw()
     return
   }
   const now = Date.now()
-  revealEffects = revealEffects.filter(effect => now - effect.at < effect.delay + effect.duration)
+  minesweeperRuntime.revealEffects = minesweeperRuntime.revealEffects.filter(effect => now - effect.at < effect.delay + effect.duration)
   draw()
-  if (revealEffects.length) setTimeout(animateRevealEffects, 16)
-  else revealAnimationRunning = false
+  if (minesweeperRuntime.revealEffects.length) setTimeout(animateRevealEffects, 16)
+  else minesweeperRuntime.revealAnimationRunning = false
 }
 
 function triggerCollapseEffect(r, c, unopenedNeighbors) {
   const now = Date.now()
-  numberFeedback = { r, c, at: now }
+  minesweeperRuntime.numberFeedback = { r, c, at: now }
   unopenedNeighbors.forEach(([nr, nc]) => {
-    collapseEffects.push({ r: nr, c: nc, at: now })
+    minesweeperRuntime.collapseEffects.push({ r: nr, c: nc, at: now })
   })
   function frame() {
-    collapseEffects = collapseEffects.filter(effect => Date.now() - effect.at < 360)
-    if (numberFeedback && Date.now() - numberFeedback.at >= 520) numberFeedback = null
+    minesweeperRuntime.collapseEffects = minesweeperRuntime.collapseEffects.filter(effect => Date.now() - effect.at < 360)
+    if (minesweeperRuntime.numberFeedback && Date.now() - minesweeperRuntime.numberFeedback.at >= 520) minesweeperRuntime.numberFeedback = null
     draw()
-    if (collapseEffects.length || numberFeedback) setTimeout(frame, 16)
+    if (minesweeperRuntime.collapseEffects.length || minesweeperRuntime.numberFeedback) setTimeout(frame, 16)
   }
   frame()
 }
@@ -383,10 +374,10 @@ function triggerCollapseEffect(r, c, unopenedNeighbors) {
 function animateFlagFeedback() {
   const start = Date.now()
   function frame() {
-    if (!flagAnimation) return
+    if (!minesweeperRuntime.flagAnimation) return
     draw()
     if (Date.now() - start < 520) setTimeout(frame, 16)
-    else { flagAnimation = null; draw() }
+    else { minesweeperRuntime.flagAnimation = null; draw() }
   }
   frame()
 }
@@ -421,54 +412,54 @@ function playFailureClick() {
 }
 
 function triggerFailureSequence(r, c) {
-  revealEffects = []
-  revealAnimationRunning = false
+  minesweeperRuntime.revealEffects = []
+  minesweeperRuntime.revealAnimationRunning = false
   const revealQueue = []
   minesweeperRuntime.board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
     if (cell.mine && !(rowIndex === r && colIndex === c) && !cell.flag) revealQueue.push([rowIndex, colIndex])
   }))
   minesweeperRuntime.board[r][c].open = true
-  explodedMine = { r, c }
+  minesweeperRuntime.explodedMine = { r, c }
   minesweeperRuntime.status = 'failing'
-  failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
+  minesweeperRuntime.failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
   playFailureClick()
   draw()
   setTimeout(advanceFailureSequence, 360)
 }
 
 function advanceFailureSequence() {
-  if (!failureSequence) return
-  if (failureSequence.phase === 'freeze') {
-    failureSequence.phase = 'explode'
-    failureSequence.at = Date.now()
+  if (!minesweeperRuntime.failureSequence) return
+  if (minesweeperRuntime.failureSequence.phase === 'freeze') {
+    minesweeperRuntime.failureSequence.phase = 'explode'
+    minesweeperRuntime.failureSequence.at = Date.now()
     animateFailureFrame()
     return
   }
-  if (failureSequence.phase === 'explode') {
-    failureSequence.phase = 'reveal'
-    failureSequence.at = Date.now()
-    failureSequence.revealed = 0
+  if (minesweeperRuntime.failureSequence.phase === 'explode') {
+    minesweeperRuntime.failureSequence.phase = 'reveal'
+    minesweeperRuntime.failureSequence.at = Date.now()
+    minesweeperRuntime.failureSequence.revealed = 0
     animateFailureFrame()
     return
   }
-  const next = failureSequence.revealQueue[failureSequence.revealed]
+  const next = minesweeperRuntime.failureSequence.revealQueue[minesweeperRuntime.failureSequence.revealed]
   if (next) {
     minesweeperRuntime.board[next[0]][next[1]].open = true
-    failureSequence.revealed += 1
+    minesweeperRuntime.failureSequence.revealed += 1
     draw()
     setTimeout(advanceFailureSequence, 72)
     return
   }
-  failureSequence = null
+  minesweeperRuntime.failureSequence = null
   minesweeperRuntime.status = 'lost'
   draw()
 }
 
 function animateFailureFrame() {
-  if (!failureSequence) return
+  if (!minesweeperRuntime.failureSequence) return
   draw()
-  const duration = failureSequence.phase === 'explode' ? 520 : 0
-  if (duration && Date.now() - failureSequence.at < duration) setTimeout(animateFailureFrame, 16)
+  const duration = minesweeperRuntime.failureSequence.phase === 'explode' ? 520 : 0
+  if (duration && Date.now() - minesweeperRuntime.failureSequence.at < duration) setTimeout(animateFailureFrame, 16)
   else advanceFailureSequence()
 }
 
@@ -476,34 +467,34 @@ function initBoard() {
   const difficulty = difficulties[minesweeperRuntime.difficultyIndex]
   minesweeperRuntime.boardRows = difficulty.rows
   minesweeperRuntime.mineCount = difficulty.mines
-  failureSequence = null
-  explodedMine = null
-  winCelebration = null
-  winCelebrationRunning = false
-  revealEffects = []
-  revealAnimationRunning = false
+  minesweeperRuntime.failureSequence = null
+  minesweeperRuntime.explodedMine = null
+  minesweeperRuntime.winCelebration = null
+  minesweeperRuntime.winCelebrationRunning = false
+  minesweeperRuntime.revealEffects = []
+  minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
-  collapseEffects = []
-  flagAnimation = null
-  numberFeedback = null
+  minesweeperRuntime.collapseEffects = []
+  minesweeperRuntime.flagAnimation = null
+  minesweeperRuntime.numberFeedback = null
   minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex)
 }
 
 function replayBoard() {
-  failureSequence = null
-  explodedMine = null
-  winCelebration = null
-  winCelebrationRunning = false
-  revealEffects = []
-  revealAnimationRunning = false
+  minesweeperRuntime.failureSequence = null
+  minesweeperRuntime.explodedMine = null
+  minesweeperRuntime.winCelebration = null
+  minesweeperRuntime.winCelebrationRunning = false
+  minesweeperRuntime.revealEffects = []
+  minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
-  collapseEffects = []
-  numberFeedback = null
-  flagAnimation = null
+  minesweeperRuntime.collapseEffects = []
+  minesweeperRuntime.numberFeedback = null
+  minesweeperRuntime.flagAnimation = null
   minesweeperRuntime.board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
   draw()
 }
@@ -536,17 +527,17 @@ function drawGameBoard() {
   text(`${minesweeperRuntime.elapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
   for (let r = 0; r < minesweeperRuntime.boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
     const cell = minesweeperRuntime.board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
-    minesweeperView.drawCell({ cell, x, y, cellSize, gap, row: r, col: c, effect: collapseEffects.find(item => item.r === r && item.c === c), flagFx: flagAnimation && flagAnimation.r === r && flagAnimation.c === c ? flagAnimation : null, exploded: explodedMine && explodedMine.r === r && explodedMine.c === c, failure: failureSequence, revealEffect: revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize, progress: failureSequence ? Math.min(1, Math.max(0, (Date.now() - failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
+    minesweeperView.drawCell({ cell, x, y, cellSize, gap, row: r, col: c, effect: minesweeperRuntime.collapseEffects.find(item => item.r === r && item.c === c), flagFx: minesweeperRuntime.flagAnimation && minesweeperRuntime.flagAnimation.r === r && minesweeperRuntime.flagAnimation.c === c ? minesweeperRuntime.flagAnimation : null, exploded: minesweeperRuntime.explodedMine && minesweeperRuntime.explodedMine.r === r && minesweeperRuntime.explodedMine.c === c, failure: minesweeperRuntime.failureSequence, revealEffect: minesweeperRuntime.revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize, progress: minesweeperRuntime.failureSequence ? Math.min(1, Math.max(0, (Date.now() - minesweeperRuntime.failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
   }
   if (minesweeperRuntime.status === 'won') {
-    if (winCelebrationRunning) drawBoardWinCelebration()
+    if (minesweeperRuntime.winCelebrationRunning) drawBoardWinCelebration()
     else drawGameResult()
   } else if (minesweeperRuntime.status === 'lost') drawGameResult()
 }
 
 function drawBoardWinCelebration() {
-  if (!winCelebration) return
-  const progress = Math.min(1, (Date.now() - winCelebration.at) / 2800)
+  if (!minesweeperRuntime.winCelebration) return
+  const progress = Math.min(1, (Date.now() - minesweeperRuntime.winCelebration.at) / 2800)
   const centerX = boardX + boardColumns * cellSize / 2
   const centerY = boardY + minesweeperRuntime.boardRows * cellSize / 2
   const boardWidth = boardColumns * cellSize
@@ -591,21 +582,21 @@ function drawGameResult() {
 }
 
 function startWinCelebration() {
-  if (winCelebrationRunning) return
-  winCelebration = { at: Date.now() }
-  winCelebrationRunning = true
+  if (minesweeperRuntime.winCelebrationRunning) return
+  minesweeperRuntime.winCelebration = { at: Date.now() }
+  minesweeperRuntime.winCelebrationRunning = true
   animateWinCelebration()
 }
 
 function animateWinCelebration() {
-  if (!winCelebration) return
+  if (!minesweeperRuntime.winCelebration) return
   draw()
-  if (Date.now() - winCelebration.at < 2800) setTimeout(animateWinCelebration, 16)
-  else { winCelebrationRunning = false; draw() }
+  if (Date.now() - minesweeperRuntime.winCelebration.at < 2800) setTimeout(animateWinCelebration, 16)
+  else { minesweeperRuntime.winCelebrationRunning = false; draw() }
 }
 
 function drawWinCelebration() {
-  minesweeperView.drawWinCelebration({ startedAt: winCelebration && winCelebration.at, width: W, height: H })
+  minesweeperView.drawWinCelebration({ startedAt: minesweeperRuntime.winCelebration && minesweeperRuntime.winCelebration.at, width: W, height: H })
 }
 
 function drawResultDifficultySelector() {

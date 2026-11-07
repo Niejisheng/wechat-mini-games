@@ -22,7 +22,6 @@ canvas.height = H * scale
 ctx.scale(scale, scale)
 
 let screen = 'home'
-let gameMode = false
 const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
 
@@ -96,7 +95,7 @@ function drawSudokuIcon(x, y, color) {
 }
 
 function drawMinesweeper() {
-  if (gameMode) { ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H); drawGameBoard(); return }
+  if (minesweeperRuntime.active) { ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H); drawGameBoard(); return }
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
   minesweeperView.drawBackArrow(26, 72)
@@ -208,7 +207,7 @@ draw()
 const minesweeperInput = minesweeperController.createController({
   width: () => W, height: () => H, draw,
   isBusy: () => Boolean(minesweeperRuntime.failureSequence || minesweeperRuntime.winCelebrationRunning),
-  isGameMode: () => gameMode, isHome: () => screen === 'home',
+  isGameMode: () => minesweeperRuntime.active, isHome: () => screen === 'home',
   getStatus: () => minesweeperRuntime.status, getBoard: () => minesweeperRuntime.board, getBoardX: () => minesweeperRuntime.boardX,
   getBoardY: () => minesweeperRuntime.boardY, getCellSize: () => minesweeperRuntime.cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
@@ -218,8 +217,8 @@ const minesweeperInput = minesweeperController.createController({
   pressDifficultyArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },
   isStartPressed: () => minesweeperRuntime.startPressed,
-  releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
-  leaveGame: () => { minesweeperRuntime.stopTimer(); gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
+  releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; initBoard(); draw() } },
+  leaveGame: () => { minesweeperRuntime.stopTimer(); minesweeperRuntime.active = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
   releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -300,7 +299,7 @@ function revealCell(r, c) {
   }
   if (!minesweeperRuntime.startedAt) {
     minesweeperRuntime.startedAt = Date.now()
-    minesweeperRuntime.startTimer(() => screen === 'minesweeper' && gameMode, draw)
+    minesweeperRuntime.startTimer(() => screen === 'minesweeper' && minesweeperRuntime.active, draw)
   }
   cell.open = true
   if (animation) scheduleRevealEffect(r, c, animation)

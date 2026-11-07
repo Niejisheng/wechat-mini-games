@@ -4,14 +4,14 @@ const games = [
     name: '扫雷',
     description: '找出所有地雷，保持冷静',
     icon: 'mine',
-    status: 'available'
+    status: 'available', iconBackground: '#e8eff4', iconColor: '#657b8c', symbol: '✣'
   },
   {
     id: 'sudoku',
     name: '数独',
     description: '用逻辑填满九宫格',
     icon: 'sudoku',
-    status: 'available'
+    status: 'available', iconBackground: '#eef0ed', iconColor: '#788778', symbol: '9'
   }
 ]
 

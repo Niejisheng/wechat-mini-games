@@ -81,8 +81,9 @@ function drawHome() {
   text('安静地玩一会儿', 44, 170, 14, '#9aa6b2')
   text('选择游戏', 44, 246, 15, '#4f5d69')
   text(`${gameRegistry.listGames().length} 个游戏`, W - 44, 246, 12, '#a4afb9', 'right')
-  card(44, 276, W - 88, 'minesweeper', '扫雷', '找出所有地雷，保持冷静', '#e8eff4', '#657b8c', '✣')
-  card(44, 374, W - 88, 'sudoku', '数独', '用逻辑填满九宫格', '#eef0ed', '#788778', '9')
+  gameRegistry.listGames().forEach((game, index) => {
+    card(44, 276 + index * 98, W - 88, game.id, game.name, game.description, game.iconBackground, game.iconColor, game.symbol)
+  })
   text('简洁的界面，专注于思考', W / 2, H - 48, 11, '#b0bac2', 'center')
 }
 
@@ -285,8 +286,16 @@ wx.onTouchEnd(event => {
   if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchEnd(event); return }
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
-  if (screen === 'home' && y >= 276 && y <= 352) { screen = 'minesweeper'; draw(); return }
-  if (screen === 'home' && y >= 374 && y <= 450) { screen = 'sudoku'; sudokuGame = sudokuLogic.gameFromPuzzle(); startSudokuTimer(); draw(); return }
+  if (screen === 'home') {
+    const index = Math.floor((y - 276) / 98)
+    const game = y >= 276 && index >= 0 && index < gameRegistry.listGames().length ? gameRegistry.listGames()[index] : null
+    if (game && y <= 352 + index * 98) {
+      screen = game.id
+      if (game.id === 'sudoku') { sudokuGame = sudokuLogic.gameFromPuzzle(); startSudokuTimer() }
+      draw()
+      return
+    }
+  }
   if (screen === 'minesweeper' && y < 120 && x < 90) { screen = 'home'; draw(); return }
   if (screen === 'minesweeper' && Math.abs(y - H * 0.56) < 40) {
     const direction = x < W / 2 ? -1 : 1

@@ -28,17 +28,7 @@ const boardColumns = minesweeperLogic.BOARD_COLUMNS
 let boardX = 20
 let boardY = 150
 let cellSize = 36
-let gameResult = ''
 
-let pressedArrow = ''
-let difficultyAnimating = false
-let difficultyFrom = 0
-let difficultyTo = 0
-let difficultyProgress = 1
-let arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
-let startPressed = false
-let startPressAt = 0
-let startLongPress = false
 let failureAudioContext = null
 const sudokuRuntime = createSudokuRuntime(sudokuLogic)
 let sudokuBoardX = 20
@@ -119,31 +109,31 @@ function drawMinesweeper() {
   minesweeperView.drawBackArrow(26, 72)
   minesweeperView.drawMineLogo(W / 2, H * 0.35)
   drawDifficultySelector()
-  roundRect(44, H * 0.63, W - 88, 52, 26, startPressed ? '#8293cf' : null, startPressed ? '#8293cf' : '#d7d9dc')
-  text('开始游戏', W / 2, H * 0.63 + 26, 16, startPressed ? '#ffffff' : '#707174', 'center')
+  roundRect(44, H * 0.63, W - 88, 52, 26, minesweeperRuntime.startPressed ? '#8293cf' : null, minesweeperRuntime.startPressed ? '#8293cf' : '#d7d9dc')
+  text('开始游戏', W / 2, H * 0.63 + 26, 16, minesweeperRuntime.startPressed ? '#ffffff' : '#707174', 'center')
   drawBottomActions()
 }
 
 function drawDifficultySelector() {
-  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
+  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: minesweeperRuntime.difficultyFrom, to: minesweeperRuntime.difficultyTo, progress: minesweeperRuntime.difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, minesweeperRuntime.pressedArrow === direction) })
 }
 
 function animateDifficulty(nextIndex) {
-  difficultyFrom = minesweeperRuntime.difficultyIndex
-  difficultyTo = nextIndex
+  minesweeperRuntime.difficultyFrom = minesweeperRuntime.difficultyIndex
+  minesweeperRuntime.difficultyTo = nextIndex
   minesweeperRuntime.difficultyIndex = nextIndex
-  difficultyProgress = 0
+  minesweeperRuntime.difficultyProgress = 0
   const start = Date.now()
   function frame() {
-    difficultyProgress = Math.min(1, (Date.now() - start) / 560)
+    minesweeperRuntime.difficultyProgress = Math.min(1, (Date.now() - start) / 560)
     draw()
-    if (difficultyProgress < 1) setTimeout(frame, 16)
+    if (minesweeperRuntime.difficultyProgress < 1) setTimeout(frame, 16)
   }
   setTimeout(frame, 16)
 }
 
 function drawChevron(x, y, direction, active) {
-  const effect = arrowEffect.side === direction ? arrowEffect : null
+  const effect = minesweeperRuntime.arrowEffect.side === direction ? minesweeperRuntime.arrowEffect : null
   if (effect && effect.phase === 'shake') {
     x += Math.sin(effect.progress * Math.PI * 8) * (1 - effect.progress) * 8
   }
@@ -231,17 +221,17 @@ const minesweeperInput = minesweeperController.createController({
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
   countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
   flagCell: (r, c, x, y) => { minesweeperRuntime.flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
-  pressResultArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
-  pressDifficultyArrow: side => { pressedArrow = side; arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
-  pressStart: () => { startPressed = true; startPressAt = Date.now(); startLongPress = false; draw(); setTimeout(() => { if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true }, 450) },
-  isStartPressed: () => startPressed,
-  releaseStart: now => { const shouldStart = now - startPressAt < 450 && !startLongPress; startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
+  pressResultArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
+  pressDifficultyArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
+  pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },
+  isStartPressed: () => minesweeperRuntime.startPressed,
+  releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
   leaveGame: () => { minesweeperRuntime.stopTimer(); gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
-  releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
-  releaseDifficultyArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
-  clearPressedArrow: () => { pressedArrow = '' }
+  releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  releaseDifficultyArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
+  clearPressedArrow: () => { minesweeperRuntime.pressedArrow = '' }
 })
 
 const sudokuInput = sudokuController.createController({
@@ -281,8 +271,8 @@ wx.onTouchEnd(event => {
   if (screen === 'minesweeper' && Math.abs(y - H * 0.56) < 40) {
     const direction = x < W / 2 ? -1 : 1
     const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction))
-    const releasedSide = pressedArrow
-    pressedArrow = ''
+    const releasedSide = minesweeperRuntime.pressedArrow
+    minesweeperRuntime.pressedArrow = ''
     if (nextIndex !== minesweeperRuntime.difficultyIndex) {
       animateArrowRelease(releasedSide)
       animateDifficulty(nextIndex)
@@ -291,7 +281,7 @@ wx.onTouchEnd(event => {
     }
     return
   }
-  pressedArrow = ''
+  minesweeperRuntime.pressedArrow = ''
   if (screen === 'minesweeper') draw()
 })
 
@@ -596,23 +586,23 @@ function drawWinCelebration() {
 }
 
 function drawResultDifficultySelector() {
-  minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: difficultyFrom, to: difficultyTo, progress: difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, pressedArrow === direction) })
+  minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: minesweeperRuntime.difficultyIndex, from: minesweeperRuntime.difficultyFrom, to: minesweeperRuntime.difficultyTo, progress: minesweeperRuntime.difficultyProgress, drawChevron: (x, y, direction) => drawChevron(x, y, direction, minesweeperRuntime.pressedArrow === direction) })
 }
 
 function animateArrowRelease(side) {
   if (!side) return
   const start = Date.now()
-  arrowEffect = { side, phase: 'release', progress: 0, rotation: 0 }
+  minesweeperRuntime.arrowEffect = { side, phase: 'release', progress: 0, rotation: 0 }
   function frame() {
     const elapsed = Date.now() - start
     if (elapsed < 120) {
-      arrowEffect.phase = 'release'; arrowEffect.progress = elapsed / 120
+      minesweeperRuntime.arrowEffect.phase = 'release'; minesweeperRuntime.arrowEffect.progress = elapsed / 120
     } else {
-      arrowEffect.phase = 'glow'; arrowEffect.progress = Math.min(1, (elapsed - 120) / 430); arrowEffect.rotation += 0.32
+      minesweeperRuntime.arrowEffect.phase = 'glow'; minesweeperRuntime.arrowEffect.progress = Math.min(1, (elapsed - 120) / 430); minesweeperRuntime.arrowEffect.rotation += 0.32
     }
     draw()
-    if (arrowEffect.progress < 1) setTimeout(frame, 16)
-    else arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
+    if (minesweeperRuntime.arrowEffect.progress < 1) setTimeout(frame, 16)
+    else minesweeperRuntime.arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
   }
   setTimeout(frame, 16)
 }
@@ -620,12 +610,12 @@ function animateArrowRelease(side) {
 function animateBoundaryShake(side) {
   if (!side) return
   const start = Date.now()
-  arrowEffect = { side, phase: 'shake', progress: 0, rotation: 0 }
+  minesweeperRuntime.arrowEffect = { side, phase: 'shake', progress: 0, rotation: 0 }
   function frame() {
-    arrowEffect.progress = Math.min(1, (Date.now() - start) / 240)
+    minesweeperRuntime.arrowEffect.progress = Math.min(1, (Date.now() - start) / 240)
     draw()
-    if (arrowEffect.progress < 1) setTimeout(frame, 16)
-    else arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
+    if (minesweeperRuntime.arrowEffect.progress < 1) setTimeout(frame, 16)
+    else minesweeperRuntime.arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
   }
   setTimeout(frame, 16)
 }

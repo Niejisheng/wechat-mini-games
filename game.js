@@ -25,11 +25,7 @@ let screen = 'home'
 let gameMode = false
 const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
-let boardX = 20
-let boardY = 150
-let cellSize = 36
 
-let failureAudioContext = null
 const sudokuRuntime = createSudokuRuntime(sudokuLogic)
 let sudokuBoardX = 20
 let sudokuBoardY = 150
@@ -216,8 +212,8 @@ const minesweeperInput = minesweeperController.createController({
   width: () => W, height: () => H, draw,
   isBusy: () => Boolean(minesweeperRuntime.failureSequence || minesweeperRuntime.winCelebrationRunning),
   isGameMode: () => gameMode, isHome: () => screen === 'home',
-  getStatus: () => minesweeperRuntime.status, getBoard: () => minesweeperRuntime.board, getBoardX: () => boardX,
-  getBoardY: () => boardY, getCellSize: () => cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
+  getStatus: () => minesweeperRuntime.status, getBoard: () => minesweeperRuntime.board, getBoardX: () => minesweeperRuntime.boardX,
+  getBoardY: () => minesweeperRuntime.boardY, getCellSize: () => minesweeperRuntime.cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
   countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
   flagCell: (r, c, x, y) => { minesweeperRuntime.flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
@@ -374,14 +370,14 @@ function animateFlagFeedback() {
 
 function playFailureClick() {
   try {
-    if (!failureAudioContext && typeof wx.createWebAudioContext === 'function') {
-      failureAudioContext = wx.createWebAudioContext()
+    if (!minesweeperRuntime.audioContext && typeof wx.createWebAudioContext === 'function') {
+      minesweeperRuntime.audioContext = wx.createWebAudioContext()
     }
-    if (failureAudioContext && failureAudioContext.createOscillator && failureAudioContext.createGain) {
-      if (failureAudioContext.resume) failureAudioContext.resume()
-      const oscillator = failureAudioContext.createOscillator()
-      const gain = failureAudioContext.createGain()
-      const now = failureAudioContext.currentTime || 0
+    if (minesweeperRuntime.audioContext && minesweeperRuntime.audioContext.createOscillator && minesweeperRuntime.audioContext.createGain) {
+      if (minesweeperRuntime.audioContext.resume) minesweeperRuntime.audioContext.resume()
+      const oscillator = minesweeperRuntime.audioContext.createOscillator()
+      const gain = minesweeperRuntime.audioContext.createGain()
+      const now = minesweeperRuntime.audioContext.currentTime || 0
       oscillator.type = 'square'
       oscillator.frequency.setValueAtTime(210, now)
       oscillator.frequency.exponentialRampToValueAtTime(78, now + 0.09)
@@ -389,7 +385,7 @@ function playFailureClick() {
       gain.gain.exponentialRampToValueAtTime(0.16, now + 0.008)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12)
       oscillator.connect(gain)
-      gain.connect(failureAudioContext.destination)
+      gain.connect(minesweeperRuntime.audioContext.destination)
       oscillator.start(now)
       oscillator.stop(now + 0.13)
     }
@@ -499,12 +495,12 @@ function drawGameBoard() {
   const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
   const widthCellSize = maxWidth / boardColumns
   const heightCellSize = availableHeight / minesweeperRuntime.boardRows
-  cellSize = Math.min(widthCellSize, heightCellSize)
-  const width = cellSize * boardColumns
+  minesweeperRuntime.cellSize = Math.min(widthCellSize, heightCellSize)
+  const width = minesweeperRuntime.cellSize * boardColumns
   const gap = Math.max(4, width * 0.012)
-  boardX = (W - width) / 2
-  const boardHeight = cellSize * minesweeperRuntime.boardRows
-  boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
+  minesweeperRuntime.boardX = (W - width) / 2
+  const boardHeight = minesweeperRuntime.cellSize * minesweeperRuntime.boardRows
+  minesweeperRuntime.boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
   const flagCount = minesweeperLogic.countFlags(minesweeperRuntime.board)
   const statusY = 82
   minesweeperView.drawBackArrow(26, 72)
@@ -512,8 +508,8 @@ function drawGameBoard() {
   text(String(minesweeperRuntime.mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
   text(`${minesweeperRuntime.elapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
   for (let r = 0; r < minesweeperRuntime.boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
-    const cell = minesweeperRuntime.board[r][c]; const x = boardX + c * cellSize; const y = boardY + r * cellSize
-    minesweeperView.drawCell({ cell, x, y, cellSize, gap, row: r, col: c, effect: minesweeperRuntime.collapseEffects.find(item => item.r === r && item.c === c), flagFx: minesweeperRuntime.flagAnimation && minesweeperRuntime.flagAnimation.r === r && minesweeperRuntime.flagAnimation.c === c ? minesweeperRuntime.flagAnimation : null, exploded: minesweeperRuntime.explodedMine && minesweeperRuntime.explodedMine.r === r && minesweeperRuntime.explodedMine.c === c, failure: minesweeperRuntime.failureSequence, revealEffect: minesweeperRuntime.revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize, progress: minesweeperRuntime.failureSequence ? Math.min(1, Math.max(0, (Date.now() - minesweeperRuntime.failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
+    const cell = minesweeperRuntime.board[r][c]; const x = minesweeperRuntime.boardX + c * minesweeperRuntime.cellSize; const y = minesweeperRuntime.boardY + r * minesweeperRuntime.cellSize
+    minesweeperView.drawCell({ cell, x, y, cellSize: minesweeperRuntime.cellSize, gap, row: r, col: c, effect: minesweeperRuntime.collapseEffects.find(item => item.r === r && item.c === c), flagFx: minesweeperRuntime.flagAnimation && minesweeperRuntime.flagAnimation.r === r && minesweeperRuntime.flagAnimation.c === c ? minesweeperRuntime.flagAnimation : null, exploded: minesweeperRuntime.explodedMine && minesweeperRuntime.explodedMine.r === r && minesweeperRuntime.explodedMine.c === c, failure: minesweeperRuntime.failureSequence, revealEffect: minesweeperRuntime.revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize: minesweeperRuntime.cellSize, progress: minesweeperRuntime.failureSequence ? Math.min(1, Math.max(0, (Date.now() - minesweeperRuntime.failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
   }
   if (minesweeperRuntime.status === 'won') {
     if (minesweeperRuntime.winCelebrationRunning) drawBoardWinCelebration()
@@ -524,14 +520,14 @@ function drawGameBoard() {
 function drawBoardWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return
   const progress = Math.min(1, (Date.now() - minesweeperRuntime.winCelebration.at) / 2800)
-  const centerX = boardX + boardColumns * cellSize / 2
-  const centerY = boardY + minesweeperRuntime.boardRows * cellSize / 2
-  const boardWidth = boardColumns * cellSize
-  const boardHeight = minesweeperRuntime.boardRows * cellSize
+  const centerX = minesweeperRuntime.boardX + boardColumns * minesweeperRuntime.cellSize / 2
+  const centerY = minesweeperRuntime.boardY + minesweeperRuntime.boardRows * minesweeperRuntime.cellSize / 2
+  const boardWidth = boardColumns * minesweeperRuntime.cellSize
+  const boardHeight = minesweeperRuntime.boardRows * minesweeperRuntime.cellSize
   const pulse = 0.5 + Math.sin(progress * Math.PI * 6) * 0.5
   ctx.save()
   ctx.fillStyle = 'rgba(247, 249, 251, 0.42)'
-  ctx.fillRect(boardX, boardY, boardWidth, boardHeight)
+  ctx.fillRect(minesweeperRuntime.boardX, minesweeperRuntime.boardY, boardWidth, boardHeight)
   for (let i = 0; i < 3; i += 1) {
     const cycle = (progress * 3 - i * 0.28 + 1) % 1
     const radius = 18 + cycle * Math.min(boardWidth, boardHeight) * 0.62

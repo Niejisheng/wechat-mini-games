@@ -1,7 +1,10 @@
 const { createGameSession } = require('../../app/game-session')
 
 function createMinesweeperRuntime(logic) {
-  return { board: [], boardRows: 9, mineCount: 10, status: 'idle', startedAt: 0, elapsedSeconds: 0, difficultyIndex: 0, timer: null, failureSequence: null, explodedMine: null, winCelebration: null, winCelebrationRunning: false, revealEffects: [], revealAnimationRunning: false, collapseEffects: [], flagAnimation: null, numberFeedback: null }
+  const runtime = { board: [], boardRows: 9, mineCount: 10, status: 'idle', startedAt: 0, elapsedSeconds: 0, difficultyIndex: 0, timer: null, failureSequence: null, explodedMine: null, winCelebration: null, winCelebrationRunning: false, revealEffects: [], revealAnimationRunning: false, collapseEffects: [], flagAnimation: null, numberFeedback: null }
+  runtime.stopTimer = () => { if (runtime.timer) clearTimeout(runtime.timer); runtime.timer = null }
+  runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); const tick = () => { if (!isActive() || runtime.status !== 'playing' || !runtime.startedAt) return; runtime.elapsedSeconds = Math.floor((Date.now() - runtime.startedAt) / 1000); draw(); runtime.timer = setTimeout(tick, 1000) }; tick() }
+  return runtime
 }
 
 function createMinesweeperGame({ draw, controller, enter, exit }) {

@@ -236,7 +236,7 @@ const minesweeperInput = minesweeperController.createController({
   pressStart: () => { startPressed = true; startPressAt = Date.now(); startLongPress = false; draw(); setTimeout(() => { if (startPressed && Date.now() - startPressAt >= 450) startLongPress = true }, 450) },
   isStartPressed: () => startPressed,
   releaseStart: now => { const shouldStart = now - startPressAt < 450 && !startLongPress; startPressed = false; draw(); if (shouldStart) { gameMode = true; initBoard(); draw() } },
-  leaveGame: () => { gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
+  leaveGame: () => { minesweeperRuntime.stopTimer(); gameMode = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
   releaseResultArrow: direction => { const releasedSide = pressedArrow; pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -317,7 +317,7 @@ function revealCell(r, c) {
   }
   if (!minesweeperRuntime.startedAt) {
     minesweeperRuntime.startedAt = Date.now()
-    updateGameTimer()
+    minesweeperRuntime.startTimer(() => screen === 'minesweeper' && gameMode, draw)
   }
   cell.open = true
   if (animation) scheduleRevealEffect(r, c, animation)
@@ -464,6 +464,7 @@ function animateFailureFrame() {
 }
 
 function initBoard() {
+  minesweeperRuntime.stopTimer()
   const difficulty = difficulties[minesweeperRuntime.difficultyIndex]
   minesweeperRuntime.boardRows = difficulty.rows
   minesweeperRuntime.mineCount = difficulty.mines
@@ -483,6 +484,7 @@ function initBoard() {
 }
 
 function replayBoard() {
+  minesweeperRuntime.stopTimer()
   minesweeperRuntime.failureSequence = null
   minesweeperRuntime.explodedMine = null
   minesweeperRuntime.winCelebration = null
@@ -500,12 +502,6 @@ function replayBoard() {
 }
 
 function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, minesweeperRuntime.boardRows, boardColumns) }
-function updateGameTimer() {
-  if (!minesweeperRuntime.startedAt || minesweeperRuntime.status !== 'playing') return
-  minesweeperRuntime.elapsedSeconds = Math.floor((Date.now() - minesweeperRuntime.startedAt) / 1000)
-  draw()
-  setTimeout(updateGameTimer, 1000)
-}
 function drawGameBoard() {
   const maxWidth = Math.min(W - 36, 360)
   const reservedTop = 112

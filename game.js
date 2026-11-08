@@ -222,6 +222,7 @@ const minesweeperInput = minesweeperController.createController({
     const fromX = boardCenterX - (distance ? deltaX / distance * offset : offset)
     const fromY = boardCenterY - (distance ? deltaY / distance * offset : offset)
     minesweeperRuntime.flagAnimation = { r, c, fromX, fromY, at: Date.now() }
+    minesweeperRuntime.clickHistory.push({ type: 'flag', row: r, col: c, flag: minesweeperRuntime.board[r][c].flag })
     if (typeof wx.vibrateShort === 'function') {
       try { wx.vibrateShort({ type: 'light' }) } catch (error) { /* ignore unavailable vibration */ }
     }
@@ -297,6 +298,7 @@ function revealCell(r, c) {
   if (!minesweeperRuntime.startedAt && !minesweeperRuntime.boardCommitted) {
     const safeCells = [[r, c], ...neighbors(r, c)]
     minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex, Math.random, safeCells)
+    minesweeperRuntime.initialBoard = minesweeperLogic.cloneBoard(minesweeperRuntime.board)
     minesweeperRuntime.boardCommitted = true
   }
   const cell = minesweeperRuntime.board[r][c]
@@ -321,6 +323,7 @@ function revealCell(r, c) {
     minesweeperRuntime.startTimer(() => screen === 'minesweeper' && minesweeperRuntime.active, draw)
   }
   cell.open = true
+  minesweeperRuntime.clickHistory.push({ type: 'open', row: r, col: c })
   if (animation) scheduleRevealEffect(r, c, animation)
   if (cell.number === 0) {
     const nextAnimation = animation || { nextDelay: 0 }
@@ -477,6 +480,10 @@ function initBoard() {
   minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
   minesweeperRuntime.boardCommitted = false
+  minesweeperRuntime.initialBoard = null
+  minesweeperRuntime.finalBoard = null
+  minesweeperRuntime.clickHistory = []
+  minesweeperRuntime.replay = null
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
   minesweeperRuntime.collapseEffects = []
@@ -495,6 +502,8 @@ function replayBoard() {
   minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
   minesweeperRuntime.boardCommitted = true
+  minesweeperRuntime.clickHistory = []
+  minesweeperRuntime.replay = null
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
   minesweeperRuntime.collapseEffects = []
@@ -506,9 +515,10 @@ function replayBoard() {
 
 function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, minesweeperRuntime.boardRows, boardColumns) }
 function drawGameBoard() {
-  const maxWidth = Math.min(W - 36, 360)
+  const replayLayout = minesweeperRuntime.status === 'won' && minesweeperRuntime.difficultyIndex >= 2
+  const maxWidth = replayLayout ? Math.min(W - 72, 250) : Math.min(W - 36, 360)
   const reservedTop = 112
-  const reservedBottom = 148
+  const reservedBottom = replayLayout ? 250 : 148
   const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
   const widthCellSize = maxWidth / boardColumns
   const heightCellSize = availableHeight / minesweeperRuntime.boardRows
@@ -584,7 +594,34 @@ function startWinCelebration() {
   if (minesweeperRuntime.winCelebrationRunning) return
   minesweeperRuntime.winCelebration = { at: Date.now() }
   minesweeperRuntime.winCelebrationRunning = true
+  if (minesweeperRuntime.difficultyIndex >= 2 && minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
   animateWinCelebration()
+}
+
+function startReplayPlayback() {
+  minesweeperRuntime.finalBoard = minesweeperLogic.cloneBoard(minesweeperRuntime.board)
+  minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
+  minesweeperRuntime.replay = { index: 0, events: [...minesweeperRuntime.clickHistory] }
+  animateReplayPlayback()
+}
+
+function animateReplayPlayback() {
+  const replay = minesweeperRuntime.replay
+  if (!replay) return
+  if (replay.index < replay.events.length) {
+    const event = replay.events[replay.index]
+    const cell = minesweeperRuntime.board[event.row][event.col]
+    if (event.type === 'open') cell.open = true
+    else if (event.type === 'flag') cell.flag = event.flag
+    replay.index += 1
+    draw()
+    setTimeout(animateReplayPlayback, 90)
+  } else {
+    minesweeperRuntime.board = minesweeperRuntime.finalBoard
+    minesweeperRuntime.finalBoard = null
+    minesweeperRuntime.replay = null
+    draw()
+  }
 }
 
 function animateWinCelebration() {

@@ -29,5 +29,8 @@ const safeBoard = logic.createBoard(4, random, [[8, 4], ...logic.neighbors(8, 4,
 const safeCells = [[8, 4], ...logic.neighbors(8, 4, 17)]
 safeCells.forEach(([row, col]) => assert.strictEqual(safeBoard[row][col].mine, false))
 assert.strictEqual(safeBoard.flat().filter(cell => cell.mine).length, logic.DIFFICULTIES[4].mines)
+const cloned = logic.cloneBoard(safeBoard)
+cloned[0][0].open = !cloned[0][0].open
+assert.notStrictEqual(cloned[0][0].open, safeBoard[0][0].open)
 
 console.log('minesweeper logic tests passed')

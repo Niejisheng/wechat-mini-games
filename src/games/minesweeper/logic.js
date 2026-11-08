@@ -58,6 +58,10 @@ function countSafeRemaining(board) {
   return board.reduce((total, row) => total + row.filter(cell => !cell.mine && !cell.open).length, 0)
 }
 
+function cloneBoard(board) {
+  return board.map(row => row.map(cell => ({ ...cell })))
+}
+
 module.exports = {
   BOARD_COLUMNS,
   DIFFICULTIES,
@@ -65,5 +69,6 @@ module.exports = {
   neighbors,
   createBoard,
   countFlags,
-  countSafeRemaining
+  countSafeRemaining,
+  cloneBoard
 }

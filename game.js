@@ -614,12 +614,12 @@ function animateReplayPlayback() {
     else if (event.type === 'flag') cell.flag = event.flag
     replay.index += 1
     draw()
-    setTimeout(animateReplayPlayback, 90)
+    setTimeout(animateReplayPlayback, 150)
   } else {
     minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
     replay.index = 0
     draw()
-    setTimeout(animateReplayPlayback, 520)
+    setTimeout(animateReplayPlayback, 1800)
   }
 }
 

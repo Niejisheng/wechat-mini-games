@@ -5,7 +5,7 @@ const DIFFICULTIES = [
   { name: '中等', rows: 11, mines: 17 },
   { name: '标准', rows: 13, mines: 25 },
   { name: '困难', rows: 15, mines: 38 },
-  { name: '极难', rows: 17, mines: 54 }
+  { name: '极难', rows: 15, mines: 45 }
 ]
 
 function getDifficulty(index) {

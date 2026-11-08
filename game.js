@@ -594,7 +594,6 @@ function startWinCelebration() {
   if (minesweeperRuntime.winCelebrationRunning) return
   minesweeperRuntime.winCelebration = { at: Date.now() }
   minesweeperRuntime.winCelebrationRunning = true
-  if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
   animateWinCelebration()
 }
 
@@ -617,10 +616,10 @@ function animateReplayPlayback() {
     draw()
     setTimeout(animateReplayPlayback, 90)
   } else {
-    minesweeperRuntime.board = minesweeperRuntime.finalBoard
-    minesweeperRuntime.finalBoard = null
-    minesweeperRuntime.replay = null
+    minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
+    replay.index = 0
     draw()
+    setTimeout(animateReplayPlayback, 520)
   }
 }
 
@@ -628,7 +627,11 @@ function animateWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return
   draw()
   if (Date.now() - minesweeperRuntime.winCelebration.at < 2800) setTimeout(animateWinCelebration, 16)
-  else { minesweeperRuntime.winCelebrationRunning = false; draw() }
+  else {
+    minesweeperRuntime.winCelebrationRunning = false
+    draw()
+    if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
+  }
 }
 
 function drawWinCelebration() {

@@ -212,7 +212,15 @@ const minesweeperInput = minesweeperController.createController({
   getBoardY: () => minesweeperRuntime.boardY, getCellSize: () => minesweeperRuntime.cellSize, getBoardRows: () => minesweeperRuntime.boardRows,
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
   countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
-  flagCell: (r, c, x, y) => { minesweeperRuntime.flagAnimation = { r, c, fromX: x, fromY: y, at: Date.now() }; animateFlagFeedback() },
+  flagCell: (r, c, x, y) => {
+    const fromX = x + (x < W / 2 ? -minesweeperRuntime.cellSize * 2.2 : minesweeperRuntime.cellSize * 2.2)
+    const fromY = y - minesweeperRuntime.cellSize * 2.4
+    minesweeperRuntime.flagAnimation = { r, c, fromX, fromY, at: Date.now() }
+    if (typeof wx.vibrateShort === 'function') {
+      try { wx.vibrateShort({ type: 'light' }) } catch (error) { /* ignore unavailable vibration */ }
+    }
+    animateFlagFeedback()
+  },
   pressResultArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressDifficultyArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },

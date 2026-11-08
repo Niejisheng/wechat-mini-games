@@ -280,9 +280,10 @@ wx.onTouchEnd(event => {
 function revealCell(r, c) {
   if (minesweeperRuntime.status !== 'playing') return
   const animation = arguments[2] || null
-  if (!minesweeperRuntime.startedAt) {
+  if (!minesweeperRuntime.startedAt && !minesweeperRuntime.boardCommitted) {
     const safeCells = [[r, c], ...neighbors(r, c)]
     minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex, Math.random, safeCells)
+    minesweeperRuntime.boardCommitted = true
   }
   const cell = minesweeperRuntime.board[r][c]
   if (cell.open) {
@@ -461,6 +462,7 @@ function initBoard() {
   minesweeperRuntime.revealEffects = []
   minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
+  minesweeperRuntime.boardCommitted = false
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
   minesweeperRuntime.collapseEffects = []
@@ -478,6 +480,7 @@ function replayBoard() {
   minesweeperRuntime.revealEffects = []
   minesweeperRuntime.revealAnimationRunning = false
   minesweeperRuntime.status = 'playing'
+  minesweeperRuntime.boardCommitted = true
   minesweeperRuntime.startedAt = 0
   minesweeperRuntime.elapsedSeconds = 0
   minesweeperRuntime.collapseEffects = []

@@ -594,7 +594,7 @@ function startWinCelebration() {
   if (minesweeperRuntime.winCelebrationRunning) return
   minesweeperRuntime.winCelebration = { at: Date.now() }
   minesweeperRuntime.winCelebrationRunning = true
-  if (minesweeperRuntime.difficultyIndex >= 2 && minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
+  if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
   animateWinCelebration()
 }
 

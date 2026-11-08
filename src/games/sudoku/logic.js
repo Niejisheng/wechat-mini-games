@@ -25,6 +25,10 @@ function completedUnits(board) {
   return UNITS.flatMap((unit, index) => unit.every(cell => board[cell] > 0) && new Set(unit.map(cell => board[cell])).size === 9 ? [index] : [])
 }
 
+function completedDigits(board) {
+  return DIGITS.filter(digit => UNITS.every(unit => unit.filter(index => board[index] === digit).length === 1))
+}
+
 function countSolutions(input, limit = 2) {
   if (conflicts(input).size) return 0
   const board = [...input]
@@ -78,6 +82,39 @@ function solvePuzzle(input) {
 
 const INITIAL_PUZZLE = '530678000600195000098000060800060003400803001700020006060000280000419005000080079'.split('').map(Number)
 
+const DIFFICULTY_CLUES = [45, 39, 34, 30, 26]
+
+function shuffle(items) {
+  const result = [...items]
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1))
+    ;[result[index], result[swap]] = [result[swap], result[index]]
+  }
+  return result
+}
+
+function generatePuzzle(difficultyIndex = 1) {
+  const target = DIFFICULTY_CLUES[Math.max(0, Math.min(DIFFICULTY_CLUES.length - 1, difficultyIndex))]
+  let best = null
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const groups = shuffle([0, 1, 2])
+    const rows = groups.flatMap(group => shuffle([0, 1, 2]).map(row => group * 3 + row))
+    const cols = groups.flatMap(group => shuffle([0, 1, 2]).map(col => group * 3 + col))
+    const digits = shuffle(DIGITS)
+    const solution = rows.flatMap(row => cols.map(col => digits[(row * 3 + Math.floor(row / 3) + col) % 9]))
+    const puzzle = [...solution]
+    for (const index of shuffle(Array.from({ length: 81 }, (_, cell) => cell))) {
+      const value = puzzle[index]
+      puzzle[index] = 0
+      if (countSolutions(puzzle) !== 1) puzzle[index] = value
+      if (puzzle.filter(Boolean).length <= target) break
+    }
+    if (!best || puzzle.filter(Boolean).length < best.filter(Boolean).length) best = puzzle
+    if (puzzle.filter(Boolean).length <= target) return puzzle
+  }
+  return best || [...INITIAL_PUZZLE]
+}
+
 function gameFromPuzzle(givens = INITIAL_PUZZLE) {
   return {
     givens: [...givens],
@@ -88,7 +125,12 @@ function gameFromPuzzle(givens = INITIAL_PUZZLE) {
     filter: null,
     noteMode: false,
     history: [],
-    won: false
+    won: false,
+    celebrated: completedUnits(givens),
+    celebratedDigits: completedDigits(givens),
+    event: null,
+    eventQueue: [],
+    rewardSequence: 0
   }
 }
 
@@ -105,6 +147,22 @@ function reducer(state, action) {
     return DIGITS.includes(action.digit) ? { ...state, selected: null, filter: state.filter === action.digit ? null : action.digit } : state
   }
   if (action.type === 'note-mode') return { ...state, noteMode: !state.noteMode }
+  if (action.type === 'clear-event') {
+    if (!state.event || (action.id !== undefined && action.id !== state.event.id)) return state
+    const queue = state.eventQueue || []
+    return { ...state, event: queue[0] || null, eventQueue: queue.slice(1) }
+  }
+  if (action.type === 'auto-notes') {
+    if (state.won) return state
+    const notes = [...state.notes]
+    let changed = false
+    for (let index = 0; index < 81; index += 1) if (!state.givens[index] && !state.values[index]) {
+      const next = availableCandidates(state.values, index, state.exclusions)
+      if (notes[index] !== next) { notes[index] = next; changed = true }
+    }
+    if (!changed) return state
+    return { ...state, notes, history: [...state.history, snapshot(state)].slice(-200) }
+  }
   if (action.type === 'undo') {
     const previous = state.history.at(-1)
     return previous ? { ...state, ...previous, history: state.history.slice(0, -1), won: false } : state
@@ -118,9 +176,12 @@ function reducer(state, action) {
   if (action.type === 'erase') { values[index] = 0; notes[index] = 0; exclusions[index] = 0 }
   if (action.type === 'exclude') {
     if (values[index] || !DIGITS.includes(action.digit) || !(candidates(values, index) & (1 << action.digit))) return state
-    exclusions[index] ^= 1 << action.digit
-    if (exclusions[index] & (1 << action.digit)) notes[index] &= ~(1 << action.digit)
-    else notes[index] |= 1 << action.digit
+    const mask = 1 << action.digit
+    exclusions[index] ^= mask
+    // A long-press on an orange candidate is the same exclusion action as
+    // removing that candidate from notes. Keep both representations synced.
+    if (exclusions[index] & mask) notes[index] &= ~mask
+    else notes[index] |= mask
   }
   if (action.type === 'input' || action.type === 'note') {
     if (!DIGITS.includes(action.digit)) return state
@@ -146,7 +207,22 @@ function reducer(state, action) {
   }
   const changed = values.some((value, i) => value !== state.values[i]) || notes.some((value, i) => value !== state.notes[i]) || exclusions.some((value, i) => value !== state.exclusions[i])
   if (!changed) return state
-  return { ...state, values, notes, exclusions, history: [...state.history, snapshot(state)].slice(-200), selected: action.type === 'exclude' ? state.selected : index, won: completedUnits(values).length === 27 }
+  const completed = completedUnits(values)
+  const before = completedUnits(state.values)
+  const celebrated = state.celebrated || []
+  const freshUnits = completed.filter(unit => !before.includes(unit) && !celebrated.includes(unit))
+  const digits = completedDigits(values)
+  const beforeDigits = completedDigits(state.values)
+  const celebratedDigits = state.celebratedDigits || []
+  const freshDigits = digits.filter(digit => !beforeDigits.includes(digit) && !celebratedDigits.includes(digit))
+  const won = completed.length === 27
+  let rewardSequence = state.rewardSequence || 0
+  const rewards = []
+  if (freshUnits.length || freshDigits.length) rewards.push({ id: ++rewardSequence, units: freshUnits, digits: freshDigits, digitCells: values.flatMap((value, cell) => freshDigits.includes(value) ? [cell] : []), win: false })
+  if (won) rewards.push({ id: ++rewardSequence, units: [], digits: [], digitCells: [], win: true })
+  const pending = [...(state.eventQueue || []), ...rewards]
+  const event = state.event || pending.shift() || null
+  return { ...state, values, notes, exclusions, history: [...state.history, snapshot(state)].slice(-200), selected: action.type === 'exclude' ? state.selected : index, won, celebrated: [...new Set([...celebrated, ...completed])], celebratedDigits: [...new Set([...celebratedDigits, ...digits])], event, eventQueue: pending, rewardSequence }
 }
 
-module.exports = { DIGITS, FULL_MASK, UNITS, PEERS, INITIAL_PUZZLE, candidates, availableCandidates, conflicts, completedUnits, countSolutions, solvePuzzle, gameFromPuzzle, reducer }
+module.exports = { DIGITS, FULL_MASK, UNITS, PEERS, INITIAL_PUZZLE, DIFFICULTY_CLUES, candidates, availableCandidates, conflicts, completedUnits, completedDigits, countSolutions, solvePuzzle, generatePuzzle, gameFromPuzzle, reducer }

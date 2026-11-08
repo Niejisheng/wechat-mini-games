@@ -31,4 +31,27 @@ assert.strictEqual(notesGame.notes[2] & (1 << 4), 0)
 assert.ok(notesGame.exclusions[2] & (1 << 4))
 assert.strictEqual(sudoku.availableCandidates(notesGame.values, 2, notesGame.exclusions) & (1 << 4), 0)
 
+let syncedGame = sudoku.reducer(sudoku.gameFromPuzzle(), { type: 'select', index: 2 })
+syncedGame = sudoku.reducer(syncedGame, { type: 'note', digit: 4 })
+assert.ok(syncedGame.notes[2] & (1 << 4))
+syncedGame = sudoku.reducer(syncedGame, { type: 'exclude', index: 2, digit: 4 })
+assert.strictEqual(syncedGame.notes[2] & (1 << 4), 0)
+assert.ok(syncedGame.exclusions[2] & (1 << 4))
+
+let autoNotesGame = sudoku.reducer(sudoku.gameFromPuzzle(), { type: 'auto-notes' })
+assert.ok(autoNotesGame.notes[2] & (1 << 4))
+assert.strictEqual(autoNotesGame.history.length, 1)
+autoNotesGame = sudoku.reducer({ ...autoNotesGame, selected: 2 }, { type: 'erase' })
+assert.strictEqual(autoNotesGame.values[2], 0)
+
+let rowEventGame = sudoku.gameFromPuzzle(Array(81).fill(0))
+for (let index = 0; index < 9; index += 1) rowEventGame = sudoku.reducer(rowEventGame, { type: 'input', index, digit: index + 1 })
+assert.deepStrictEqual(rowEventGame.event.units, [0])
+rowEventGame = sudoku.reducer(rowEventGame, { type: 'clear-event', id: rowEventGame.event.id })
+assert.strictEqual(rowEventGame.event, null)
+
+let digitEventGame = sudoku.gameFromPuzzle(Array(81).fill(0))
+;[0, 12, 24, 28, 40, 52, 56, 68, 80].forEach(index => { digitEventGame = sudoku.reducer(digitEventGame, { type: 'input', index, digit: 1 }) })
+assert.deepStrictEqual(digitEventGame.event.digits, [1])
+
 console.log('sudoku logic tests passed')

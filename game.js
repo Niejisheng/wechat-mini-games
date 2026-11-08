@@ -34,7 +34,7 @@ const iconImages = {}
 ;['settings', 'shopping-cart', 'list', 'info-circle'].forEach((name) => {
   const image = wx.createImage()
   image.src = `assets/icons/${name}.png`
-  image.onload = () => { iconImages[name] = image; if (screen === 'minesweeper') draw() }
+  image.onload = () => { iconImages[name] = image; if (screen === 'minesweeper' || screen === 'sudoku') draw() }
 })
 const mineStatusIcon = wx.createImage()
 mineStatusIcon.src = 'assets/icons/mine.png'
@@ -166,12 +166,14 @@ function drawBottomActions() {
 }
 
 function drawSudoku() {
+  if (sudokuRuntime.mode === 'menu') { drawSudokuMenu(); return }
   sudokuView.drawPageHeader({ elapsed: sudokuRuntime.elapsedSeconds })
   const layout = sudokuView.layout()
   const width = layout.width
   sudokuRuntime.cellSize = layout.cellSize
   sudokuRuntime.boardX = layout.boardX
   sudokuRuntime.boardY = layout.boardY
+  sudokuView.drawControls({ width: W, height: H, canUndo: sudokuRuntime.game.history.length > 0, selected: sudokuRuntime.game.selected, won: sudokuRuntime.game.won })
   const filterY = sudokuRuntime.boardY - 35
   const filterCaptionY = filterY - 38
   sudokuView.drawFilterCaption({ y: filterCaptionY })
@@ -191,6 +193,101 @@ function drawSudoku() {
   sudokuView.drawGridBorders({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width })
   sudokuView.drawKeypad({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width, noteMode: sudokuRuntime.game.noteMode })
   sudokuView.drawHint({ filter: sudokuRuntime.game.filter })
+  if (sudokuRuntime.game.won) {
+    sudokuView.drawResultPanel({ width: W, height: H })
+    minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: sudokuRuntime.difficultyIndex, from: sudokuRuntime.difficultyFrom, to: sudokuRuntime.difficultyTo, progress: sudokuRuntime.difficultyProgress, drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
+  }
+  sudokuView.drawCelebration({ event: sudokuRuntime.celebration, startedAt: sudokuRuntime.celebrationAt, width: W, height: H, boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, cellSize: sudokuRuntime.cellSize })
+}
+
+function playSudokuCelebration(event) {
+  if (!event) return
+  sudokuRuntime.celebration = event
+  sudokuRuntime.celebrationAt = Date.now()
+  draw()
+  const duration = event.win ? 2600 : event.digits.length ? 1700 : 1200
+  setTimeout(() => {
+    sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'clear-event', id: event.id })
+    if (sudokuRuntime.game.event) playSudokuCelebration(sudokuRuntime.game.event)
+    else { sudokuRuntime.celebration = null; sudokuRuntime.celebrationAt = 0; draw() }
+  }, duration)
+  const frame = () => {
+    if (sudokuRuntime.celebration !== event) return
+    draw()
+    if ((Date.now() - sudokuRuntime.celebrationAt) < duration) setTimeout(frame, 33)
+  }
+  setTimeout(frame, 33)
+}
+
+function drawSudokuMenu() {
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
+  minesweeperView.drawBackArrow(26, 72)
+  drawSudokuLogo(W / 2, H * 0.35)
+  minesweeperView.drawDifficultySelector({ width: W, height: H, difficulties, index: sudokuRuntime.difficultyIndex, from: sudokuRuntime.difficultyFrom, to: sudokuRuntime.difficultyTo, progress: sudokuRuntime.difficultyProgress, drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
+  roundRect(44, H * 0.63, W - 88, 52, 26, sudokuRuntime.startPressed ? '#8293cf' : null, sudokuRuntime.startPressed ? '#8293cf' : '#d7d9dc')
+  text('开始游戏', W / 2, H * 0.63 + 26, 16, sudokuRuntime.startPressed ? '#ffffff' : '#707174', 'center')
+  drawBottomActions()
+}
+
+function drawSudokuLogo(cx, cy) {
+  ctx.fillStyle = '#8293cf'; ctx.beginPath(); ctx.arc(cx, cy, 66, 0, Math.PI * 2); ctx.fill()
+  ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round'
+  for (let i = -1; i <= 1; i += 1) {
+    ctx.beginPath(); ctx.moveTo(i * 18, -42); ctx.lineTo(i * 18, 42); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(-42, i * 18); ctx.lineTo(42, i * 18); ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawSudokuChevron(x, y, direction) {
+  const effect = sudokuRuntime.arrowEffect.side === direction ? sudokuRuntime.arrowEffect : null
+  if (effect && effect.phase === 'shake') x += Math.sin(effect.progress * Math.PI * 8) * (1 - effect.progress) * 8
+  if (effect && effect.phase === 'press') { ctx.fillStyle = '#8293cf'; ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill() }
+  else if (effect && effect.phase === 'release') { ctx.globalAlpha = 1 - effect.progress; ctx.fillStyle = '#8293cf'; ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1 }
+  if (effect && effect.phase === 'glow') {
+    const fade = 1 - effect.progress; ctx.globalAlpha = fade
+    const colors = ['#8293cf', '#b4c0e2', '#aeb4c1', '#f0f1f3']; const segment = Math.PI * 2 / colors.length
+    colors.forEach((color, index) => { ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 24, effect.rotation + index * segment, effect.rotation + (index + 1) * segment); ctx.stroke() })
+    ctx.globalAlpha = 1
+  }
+  ctx.strokeStyle = effect && effect.phase === 'press' ? '#ffffff' : '#8a8b8f'; ctx.lineWidth = 3; ctx.lineCap = 'round'
+  const sign = direction === 'left' ? -1 : 1
+  ctx.beginPath(); ctx.moveTo(x - sign * 5, y - 10); ctx.lineTo(x + sign * 5, y); ctx.lineTo(x - sign * 5, y + 10); ctx.stroke()
+}
+
+function animateSudokuArrowRelease(side) {
+  sudokuRuntime.arrowEffect = { side, phase: 'release', progress: 0, rotation: 0 }
+  const start = Date.now()
+  function frame() {
+    const elapsed = Date.now() - start
+    if (elapsed < 120) { sudokuRuntime.arrowEffect.phase = 'release'; sudokuRuntime.arrowEffect.progress = elapsed / 120 }
+    else { sudokuRuntime.arrowEffect.phase = 'glow'; sudokuRuntime.arrowEffect.progress = Math.min(1, (elapsed - 120) / 430); sudokuRuntime.arrowEffect.rotation += 0.32 }
+    draw()
+    if (sudokuRuntime.arrowEffect.progress < 1) setTimeout(frame, 16)
+    else sudokuRuntime.arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 }
+  }
+  frame()
+}
+
+function animateSudokuBoundaryShake(side) {
+  sudokuRuntime.arrowEffect = { side, phase: 'shake', progress: 0, rotation: 0 }
+  const start = Date.now()
+  function frame() { sudokuRuntime.arrowEffect.progress = Math.min(1, (Date.now() - start) / 240); draw(); if (sudokuRuntime.arrowEffect.progress < 1) setTimeout(frame, 16); else sudokuRuntime.arrowEffect = { side: '', phase: 'idle', progress: 1, rotation: 0 } }
+  frame()
+}
+
+function animateSudokuDifficulty(nextIndex) {
+  sudokuRuntime.difficultyFrom = sudokuRuntime.difficultyIndex
+  sudokuRuntime.difficultyTo = nextIndex
+  sudokuRuntime.difficultyIndex = nextIndex
+  sudokuRuntime.difficultyProgress = 0
+  const start = Date.now()
+  function frame() {
+    sudokuRuntime.difficultyProgress = Math.min(1, (Date.now() - start) / 560)
+    draw()
+    if (sudokuRuntime.difficultyProgress < 1) setTimeout(frame, 16)
+  }
+  setTimeout(frame, 16)
 }
 
 function startSudokuTimer() {
@@ -243,13 +340,24 @@ const minesweeperInput = minesweeperController.createController({
 
 const sudokuInput = sudokuController.createController({
   width: () => W, height: () => H, getBoardX: () => sudokuRuntime.boardX, getBoardY: () => sudokuRuntime.boardY,
+  getMode: () => sudokuRuntime.mode,
   getCellSize: () => sudokuRuntime.cellSize, getFilter: () => sudokuRuntime.game.filter,
-  leave: () => { sudokuInput.destroy(); stopSudokuTimer(); screen = 'home'; draw() },
+  leave: () => { sudokuInput.destroy(); stopSudokuTimer(); sudokuRuntime.mode = 'menu'; screen = 'home'; draw() },
+  pressStart: () => { sudokuRuntime.startPressed = true; sudokuRuntime.startPressAt = Date.now(); draw() },
+  releaseStart: now => { const shouldStart = now - sudokuRuntime.startPressAt < 450; sudokuRuntime.startPressed = false; if (shouldStart) { sudokuRuntime.mode = 'playing'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); startSudokuTimer() } draw() },
+  startGame: () => { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); sudokuRuntime.mode = 'playing'; startSudokuTimer(); draw() },
+  restartGame: () => { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); sudokuRuntime.mode = 'playing'; startSudokuTimer(); draw() },
+  pressDifficultyArrow: side => { sudokuRuntime.pressedArrow = side; sudokuRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 }; draw() },
+  releaseDifficultyArrow: direction => { const side = sudokuRuntime.pressedArrow; sudokuRuntime.pressedArrow = ''; const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) { animateSudokuArrowRelease(side); animateSudokuDifficulty(next) } else animateSudokuBoundaryShake(side) },
+  changeDifficulty: direction => { const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) animateSudokuDifficulty(next) },
   toggleNoteMode: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'note-mode' }); draw() },
   filter: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'filter', digit }); draw() },
   select: index => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'select', index }); draw() },
-  input: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: sudokuRuntime.game.noteMode ? 'note' : 'input', digit }); draw() },
-  exclude: (index, digit) => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'exclude', index, digit }); draw() }
+  input: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: sudokuRuntime.game.noteMode ? 'note' : 'input', digit }); if (sudokuRuntime.game.won) { sudokuRuntime.mode = 'result'; stopSudokuTimer() } if (sudokuRuntime.game.event) playSudokuCelebration(sudokuRuntime.game.event); else draw() },
+  exclude: (index, digit) => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'exclude', index, digit }); draw() },
+  undo: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'undo' }); draw() },
+  erase: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'erase' }); draw() },
+  autoNotes: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'auto-notes' }); draw() }
 })
 
 gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput }))
@@ -269,7 +377,7 @@ wx.onTouchEnd(event => {
     const game = y >= 276 && index >= 0 && index < gameRegistry.listGames().length ? gameRegistry.listGames()[index] : null
     if (game && y <= 352 + index * 98) {
       screen = game.id
-      if (game.id === 'sudoku') { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(); startSudokuTimer() }
+      if (game.id === 'sudoku') { sudokuRuntime.mode = 'menu'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(); stopSudokuTimer() }
       draw()
       return
     }
@@ -551,38 +659,75 @@ function drawGameBoard() {
 
 function drawBoardWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return
-  const progress = Math.min(1, (Date.now() - minesweeperRuntime.winCelebration.at) / 2800)
+  const elapsed = Date.now() - minesweeperRuntime.winCelebration.at
+  const progress = Math.min(1, elapsed / 3600)
   const centerX = minesweeperRuntime.boardX + boardColumns * minesweeperRuntime.cellSize / 2
   const centerY = minesweeperRuntime.boardY + minesweeperRuntime.boardRows * minesweeperRuntime.cellSize / 2
   const boardWidth = boardColumns * minesweeperRuntime.cellSize
   const boardHeight = minesweeperRuntime.boardRows * minesweeperRuntime.cellSize
-  const pulse = 0.5 + Math.sin(progress * Math.PI * 6) * 0.5
+  const boardLeft = minesweeperRuntime.boardX
+  const boardTop = minesweeperRuntime.boardY
+  const boardBottom = boardTop + boardHeight
+  const burst = Math.min(1, elapsed / 620)
+  const settle = Math.max(0, Math.min(1, (elapsed - 2200) / 1400))
+  const pulse = 0.5 + Math.sin(elapsed / 150) * 0.5
+  const easeOut = value => 1 - Math.pow(1 - value, 3)
+  const drawStar = (x, y, size, rotation, color, alpha) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.globalAlpha = alpha; ctx.fillStyle = color
+    ctx.beginPath()
+    for (let i = 0; i < 8; i += 1) {
+      const radius = i % 2 ? size * 0.35 : size
+      const angle = -Math.PI / 2 + i * Math.PI / 4
+      const px = Math.cos(angle) * radius; const py = Math.sin(angle) * radius
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+    }
+    ctx.closePath(); ctx.fill(); ctx.restore()
+  }
   ctx.save()
-  ctx.fillStyle = 'rgba(247, 249, 251, 0.42)'
-  ctx.fillRect(minesweeperRuntime.boardX, minesweeperRuntime.boardY, boardWidth, boardHeight)
+  ctx.fillStyle = `rgba(247, 249, 251, ${0.28 + settle * 0.18})`
+  ctx.fillRect(boardLeft, boardTop, boardWidth, boardHeight)
+  ctx.beginPath(); ctx.rect(boardLeft, boardTop, boardWidth, boardHeight); ctx.clip()
+
+  // 第一段：整盘被点亮，完成感从最后一格向外扩散。
   for (let i = 0; i < 3; i += 1) {
-    const cycle = (progress * 3 - i * 0.28 + 1) % 1
-    const radius = 18 + cycle * Math.min(boardWidth, boardHeight) * 0.62
+    const cycle = Math.min(1, Math.max(0, burst * 1.25 - i * 0.2))
+    const radius = 12 + easeOut(cycle) * Math.min(boardWidth, boardHeight) * 0.7
     ctx.globalAlpha = (1 - cycle) * 0.42
-    ctx.strokeStyle = i === 1 ? '#8293cf' : '#78a994'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = i === 1 ? '#8293cf' : '#78a994'; ctx.lineWidth = 2
     ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.stroke()
   }
-  ctx.globalAlpha = 0.22 + pulse * 0.08
-  ctx.fillStyle = '#9bc6ac'
-  ctx.beginPath(); ctx.arc(centerX, centerY, 34 + pulse * 8, 0, Math.PI * 2); ctx.fill()
-  const particles = ['#78a994', '#8293cf', '#edb36d', '#b5c9d9', '#9ebcae', '#d89a72', '#a8bad8', '#8ab39e']
-  particles.forEach((color, i) => {
-    const angle = i * Math.PI * 2 / particles.length + 0.18
-    const distance = 24 + progress * Math.min(boardWidth, boardHeight) * 0.58
-    const x = centerX + Math.cos(angle) * distance
-    const y = centerY + Math.sin(angle) * distance
-    ctx.globalAlpha = (1 - progress) * 0.9
-    ctx.fillStyle = color
-    ctx.save(); ctx.translate(x, y); ctx.rotate(progress * 4 + i)
-    ctx.beginPath(); ctx.arc(0, 0, 2 + i % 3, 0, Math.PI * 2); ctx.fill(); ctx.restore()
-  })
-  ctx.globalAlpha = 0.92 + pulse * 0.06
+  ctx.globalAlpha = 0.1 + (1 - settle) * 0.12 + pulse * 0.05
+  ctx.fillStyle = '#9bc6ac'; ctx.beginPath(); ctx.arc(centerX, centerY, 34 + pulse * 8, 0, Math.PI * 2); ctx.fill()
+
+  // 第二段：每个格子崩出星星，带着不同延迟向下落，形成满棋盘的星雨。
+  const colors = ['#78a994', '#8293cf', '#edb36d', '#b5c9d9', '#9ebcae', '#d89a72', '#a8bad8']
+  const totalCells = minesweeperRuntime.boardRows * boardColumns
+  for (let index = 0; index < totalCells * 2; index += 1) {
+    const cellIndex = index % totalCells
+    const row = Math.floor(cellIndex / boardColumns)
+    const col = cellIndex % boardColumns
+    const seed = (index * 37 + cellIndex * 17) % 101
+    const originX = boardLeft + (col + 0.5) * minesweeperRuntime.cellSize
+    const originY = boardTop + (row + 0.5) * minesweeperRuntime.cellSize
+    const delay = 540 + (row / Math.max(1, minesweeperRuntime.boardRows - 1)) * 760 + (seed % 9) * 34
+    const local = Math.max(0, Math.min(1, (elapsed - delay) / 1120))
+    if (!local) continue
+    const fall = easeOut(local)
+    const drift = Math.sin(index * 2.7 + elapsed / 240) * (4 + seed % 7)
+    const x = originX + (seed % 2 ? -1 : 1) * (seed % 13 - 6) * 0.9 + drift
+    const y = originY - (1 - fall) * (12 + seed % 18) + fall * (boardBottom - originY + 18)
+    const alpha = (1 - Math.max(0, local - 0.72) / 0.28) * (0.52 + (seed % 4) * 0.1)
+    drawStar(x, y, 2.2 + seed % 4, elapsed / 500 + index, colors[index % colors.length], alpha)
+  }
+
+  // 第三段：星雨收束成一圈柔和的高光，给玩家一个明确的完成瞬间。
+  const ring = Math.max(0, Math.min(1, (elapsed - 2350) / 850))
+  if (ring > 0) {
+    ctx.globalAlpha = (1 - ring) * 0.38
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(centerX, centerY, 20 + easeOut(ring) * Math.min(boardWidth, boardHeight) * 0.36, 0, Math.PI * 2); ctx.stroke()
+  }
+  ctx.globalAlpha = 0.84 + pulse * 0.1
   ctx.fillStyle = '#78a994'
   ctx.beginPath(); ctx.arc(centerX, centerY, 18 + pulse * 2, 0, Math.PI * 2); ctx.fill()
   ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'
@@ -647,7 +792,7 @@ function animateReplayPlayback() {
 function animateWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return
   draw()
-  if (Date.now() - minesweeperRuntime.winCelebration.at < 2800) setTimeout(animateWinCelebration, 16)
+  if (Date.now() - minesweeperRuntime.winCelebration.at < 3600) setTimeout(animateWinCelebration, 16)
   else {
     minesweeperRuntime.winCelebrationRunning = false
     draw()

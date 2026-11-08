@@ -616,10 +616,14 @@ function animateReplayPlayback() {
     draw()
     setTimeout(animateReplayPlayback, 150)
   } else {
-    minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
-    replay.index = 0
     draw()
-    setTimeout(animateReplayPlayback, 1800)
+    setTimeout(() => {
+      if (minesweeperRuntime.replay !== replay) return
+      minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
+      replay.index = 0
+      draw()
+      setTimeout(animateReplayPlayback, 150)
+    }, 1800)
   }
 }
 

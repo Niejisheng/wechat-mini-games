@@ -55,8 +55,8 @@ function createMinesweeperView({ ctx, roundRect, text }) {
     text(won ? '恭喜通关' : '踩到地雷了', width / 2, height * 0.73, 22, won ? '#258c55' : '#b06a48', 'center')
     text(won ? '所有安全方块都已找到' : '雷区已揭示，重新开始试试', width / 2, height * 0.77, 13, '#667483', 'center')
     roundRect(44, height * 0.79, width - 88, 52, 26, '#8293cf')
-    if (won) text('再来一局', width / 2, height * 0.79 + 26, 16, '#ffffff', 'center')
-    else { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(width / 2, height * 0.79 + 12); ctx.lineTo(width / 2, height * 0.79 + 40); ctx.stroke(); text('再来一局', width * 0.32, height * 0.79 + 26, 15, '#ffffff', 'center'); text('再试一次', width * 0.68, height * 0.79 + 26, 15, '#ffffff', 'center') }
+    if (won) text('新游戏', width / 2, height * 0.79 + 26, 16, '#ffffff', 'center')
+    else { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(width / 2, height * 0.79 + 12); ctx.lineTo(width / 2, height * 0.79 + 40); ctx.stroke(); text('新游戏', width * 0.32, height * 0.79 + 26, 15, '#ffffff', 'center'); text('再试一次', width * 0.68, height * 0.79 + 26, 15, '#ffffff', 'center') }
     drawDifficultySelector()
   }
   function drawWinCelebration({ startedAt, width, height }) {

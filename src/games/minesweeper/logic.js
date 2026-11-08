@@ -26,8 +26,9 @@ function neighbors(row, col, rows, columns = BOARD_COLUMNS) {
   return result
 }
 
-function createBoard(difficultyIndex, random = Math.random) {
+function createBoard(difficultyIndex, random = Math.random, safeCells = []) {
   const difficulty = getDifficulty(difficultyIndex)
+  const safe = new Set(safeCells.map(([row, col]) => `${row},${col}`))
   const board = Array.from({ length: difficulty.rows }, () => (
     Array.from({ length: BOARD_COLUMNS }, () => ({ mine: false, number: 0, open: false, flag: false }))
   ))
@@ -35,7 +36,7 @@ function createBoard(difficultyIndex, random = Math.random) {
   while (placed < difficulty.mines) {
     const row = Math.floor(random() * difficulty.rows)
     const col = Math.floor(random() * BOARD_COLUMNS)
-    if (!board[row][col].mine) {
+    if (!board[row][col].mine && !safe.has(`${row},${col}`)) {
       board[row][col].mine = true
       placed += 1
     }

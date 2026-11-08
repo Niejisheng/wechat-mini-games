@@ -280,6 +280,10 @@ wx.onTouchEnd(event => {
 function revealCell(r, c) {
   if (minesweeperRuntime.status !== 'playing') return
   const animation = arguments[2] || null
+  if (!minesweeperRuntime.startedAt) {
+    const safeCells = [[r, c], ...neighbors(r, c)]
+    minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex, Math.random, safeCells)
+  }
   const cell = minesweeperRuntime.board[r][c]
   if (cell.open) {
     // 只有数字格支持按周围旗子数量展开；已打开的空白格不响应。

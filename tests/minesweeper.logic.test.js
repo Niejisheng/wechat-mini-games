@@ -25,4 +25,9 @@ sample[0][1].open = true
 assert.strictEqual(logic.countFlags(sample), 1)
 assert.strictEqual(logic.countSafeRemaining(sample), sample.flat().filter(cell => !cell.mine && !cell.open).length)
 
+const safeBoard = logic.createBoard(4, random, [[8, 4], ...logic.neighbors(8, 4, 17)])
+const safeCells = [[8, 4], ...logic.neighbors(8, 4, 17)]
+safeCells.forEach(([row, col]) => assert.strictEqual(safeBoard[row][col].mine, false))
+assert.strictEqual(safeBoard.flat().filter(cell => cell.mine).length, logic.DIFFICULTIES[4].mines)
+
 console.log('minesweeper logic tests passed')

@@ -49,9 +49,8 @@ function createMinesweeperView({ ctx, roundRect, text }) {
     for (let i = 0; i < 3; i += 1) { const ring = radius + i * 8; ctx.beginPath(); ctx.arc(targetX, targetY, Math.max(2, ring * (1 - p)), 0, Math.PI * 2); ctx.stroke() }
     ctx.translate(x, y); ctx.scale(1.7 - eased * 0.7, 1.7 - eased * 0.7); drawFlag(0, 0); ctx.restore()
   }
-  function drawResultPanel({ width, height, won, drawCelebration, drawDifficultySelector }) {
+  function drawResultPanel({ width, height, won, drawDifficultySelector }) {
     ctx.fillStyle = 'rgba(247, 249, 251, 0.92)'; ctx.fillRect(24, height * 0.72, width - 48, 90)
-    if (won) drawCelebration()
     text(won ? '恭喜通关' : '踩到地雷了', width / 2, height * 0.755, 22, won ? '#258c55' : '#b06a48', 'center')
     roundRect(44, height * 0.79, width - 88, 52, 26, '#8293cf')
     if (won) text('新游戏', width / 2, height * 0.79 + 26, 16, '#ffffff', 'center')

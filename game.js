@@ -577,7 +577,7 @@ function drawBoardWinCelebration() {
 
 function drawGameResult() {
   const won = minesweeperRuntime.status === 'won'
-  minesweeperView.drawResultPanel({ width: W, height: H, won, drawCelebration: drawWinCelebration, drawDifficultySelector: drawResultDifficultySelector })
+  minesweeperView.drawResultPanel({ width: W, height: H, won, drawDifficultySelector: drawResultDifficultySelector })
 }
 
 function startWinCelebration() {

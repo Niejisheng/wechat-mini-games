@@ -333,7 +333,12 @@ function revealCell(r, c) {
   const safeRemaining = minesweeperLogic.countSafeRemaining(minesweeperRuntime.board)
   if (safeRemaining === 0) {
     minesweeperRuntime.status = 'won'
-    minesweeperRuntime.board.forEach(row => row.forEach(item => { if (item.mine) item.flag = true }))
+    minesweeperRuntime.board.forEach((row, rowIndex) => row.forEach((item, colIndex) => {
+      if (item.mine && !item.flag) {
+        item.flag = true
+        minesweeperRuntime.clickHistory.push({ type: 'flag', row: rowIndex, col: colIndex, flag: true, automatic: true })
+      }
+    }))
     startWinCelebration()
   }
 }

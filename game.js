@@ -626,7 +626,7 @@ function animateReplayPlayback() {
     else if (event.type === 'flag') cell.flag = event.flag
     replay.index += 1
     draw()
-    setTimeout(animateReplayPlayback, 330)
+    setTimeout(animateReplayPlayback, 310)
   } else {
     draw()
     setTimeout(() => {

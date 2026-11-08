@@ -521,9 +521,9 @@ function replayBoard() {
 function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, minesweeperRuntime.boardRows, boardColumns) }
 function drawGameBoard() {
   const replayLayout = minesweeperRuntime.status === 'won' && minesweeperRuntime.difficultyIndex >= 2
-  const maxWidth = replayLayout ? Math.min(W - 72, 250) : Math.min(W - 36, 360)
+  const maxWidth = replayLayout ? Math.min(W - 36, 330) : Math.min(W - 36, 360)
   const reservedTop = 112
-  const reservedBottom = replayLayout ? 250 : 148
+  const reservedBottom = replayLayout ? 180 : 148
   const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
   const widthCellSize = maxWidth / boardColumns
   const heightCellSize = availableHeight / minesweeperRuntime.boardRows

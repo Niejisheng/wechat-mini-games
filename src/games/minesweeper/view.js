@@ -1,7 +1,7 @@
 function createMinesweeperView({ ctx, roundRect, text }) {
   function drawBackArrow(x, y) { ctx.strokeStyle = '#8a8b8f'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + 12, y); ctx.lineTo(x, y + 12); ctx.lineTo(x + 12, y + 24); ctx.stroke() }
   function drawMineLogo(cx, cy) { ctx.fillStyle = '#8293cf'; ctx.beginPath(); ctx.arc(cx, cy, 66, 0, Math.PI * 2); ctx.fill(); const teeth = [[0, -78], [55, -55], [78, 0], [55, 55], [0, 78], [-55, 55], [-78, 0], [-55, -55]]; teeth.forEach(([dx, dy]) => { ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.rotate(Math.atan2(dy, dx)); roundRect(-10, -17, 20, 34, 5, '#8293cf'); ctx.restore() }); roundRect(cx - 19, cy - 19, 38, 38, 6, '#ffffff') }
-  function drawFlag(x, y) { ctx.strokeStyle = '#f2a516'; ctx.fillStyle = '#f2a516'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 5, y + 10); ctx.lineTo(x - 5, y - 11); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 4, y - 10); ctx.lineTo(x + 9, y - 5); ctx.lineTo(x - 4, y); ctx.closePath(); ctx.fill() }
+  function drawFlag(x, y, cellSize = 36) { const scale = cellSize / 36; ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale); ctx.strokeStyle = '#f2a516'; ctx.fillStyle = '#f2a516'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-5, 10); ctx.lineTo(-5, -11); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-4, -10); ctx.lineTo(9, -5); ctx.lineTo(-4, 0); ctx.closePath(); ctx.fill(); ctx.restore() }
   function drawMineGlyph(x, y, size, color) { const core = size * 0.29; const toothWidth = size * 0.13; const toothLength = size * 0.2; ctx.save(); ctx.translate(x, y); ctx.fillStyle = color; for (let i = 0; i < 8; i += 1) { ctx.save(); ctx.rotate(i * Math.PI / 4); roundRect(-toothWidth / 2, -core - toothLength + 1, toothWidth, toothLength, toothWidth * 0.35, color); ctx.restore() } ctx.beginPath(); ctx.arc(0, 0, core, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#f7fafc'; ctx.beginPath(); ctx.arc(-core * 0.28, -core * 0.3, Math.max(1.2, core * 0.16), 0, Math.PI * 2); ctx.fill(); ctx.restore() }
   function drawCell({ cell, x, y, cellSize, gap, row, col, effect, flagFx, exploded, failure, revealEffect, drawFlyingFlag, drawMineExplosion }) {
     let effectProgress = effect ? Math.max(0, Math.min(1, (Date.now() - effect.at) / 360)) : 0
@@ -13,7 +13,7 @@ function createMinesweeperView({ ctx, roundRect, text }) {
     if (!cell.open) { roundRect(x + inset, y + inset + 2, size, size, 10, '#c3d2dc'); roundRect(x + inset, y + inset, size, size, 10, fill, cell.flag ? '#71899e' : '#c5d4df'); ctx.globalAlpha = 0.72; roundRect(x + inset + 2, y + inset + 2, size - 4, size - 4, 8, null, '#f8fbfd'); ctx.globalAlpha = 1 } else roundRect(x + inset, y + inset, size, size, 10, fill, '#cfdae2')
     const center = { x: centerX, y: centerY }
     if (cell.flag && !cell.open && flagFx) drawFlyingFlag(flagFx, centerX, centerY)
-    else if (cell.flag && !cell.open) drawFlag(centerX, centerY)
+    else if (cell.flag && !cell.open) drawFlag(centerX, centerY, cellSize)
     else if (cell.open && cell.mine) { if (failure && failure.phase === 'explode' && failure.r === row && failure.c === col) drawMineExplosion(centerX, centerY); else drawMineGlyph(centerX, centerY, cellSize * 0.58, exploded ? '#d86b4f' : '#5f7180') }
     else if (cell.open && cell.number) text(String(cell.number), centerX, centerY, 22, ['','#2864a3','#258c55','#7b5aa0','#b06a48'][cell.number] || '#64788c', 'center')
     if (revealEffect) drawRevealOverlay(revealEffect, centerX, centerY, size)

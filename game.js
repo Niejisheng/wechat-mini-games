@@ -605,7 +605,15 @@ function startWinCelebration() {
 function startReplayPlayback() {
   minesweeperRuntime.finalBoard = minesweeperLogic.cloneBoard(minesweeperRuntime.board)
   minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
-  minesweeperRuntime.replay = { index: 0, events: [...minesweeperRuntime.clickHistory] }
+  const events = [...minesweeperRuntime.clickHistory]
+  const opened = new Set(events.filter(event => event.type === 'open').map(event => `${event.row},${event.col}`))
+  const flagged = new Set(events.filter(event => event.type === 'flag' && event.flag).map(event => `${event.row},${event.col}`))
+  minesweeperRuntime.finalBoard.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
+    const key = `${rowIndex},${colIndex}`
+    if (cell.open && !opened.has(key)) events.push({ type: 'open', row: rowIndex, col: colIndex, recovered: true })
+    if (cell.flag && !flagged.has(key)) events.push({ type: 'flag', row: rowIndex, col: colIndex, flag: true, recovered: true })
+  }))
+  minesweeperRuntime.replay = { index: 0, events }
   animateReplayPlayback()
 }
 

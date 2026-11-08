@@ -2,10 +2,10 @@ const BOARD_COLUMNS = 9
 
 const DIFFICULTIES = [
   { name: '容易', rows: 9, mines: 10 },
-  { name: '中等', rows: 11, mines: 17 },
-  { name: '标准', rows: 13, mines: 25 },
-  { name: '困难', rows: 15, mines: 38 },
-  { name: '极难', rows: 15, mines: 45 }
+  { name: '中等', rows: 9, mines: 10 },
+  { name: '标准', rows: 11, mines: 17 },
+  { name: '困难', rows: 13, mines: 25 },
+  { name: '极难', rows: 15, mines: 38 }
 ]
 
 function getDifficulty(index) {

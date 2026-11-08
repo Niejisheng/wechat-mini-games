@@ -626,8 +626,13 @@ function animateReplayPlayback() {
     else if (event.type === 'flag') cell.flag = event.flag
     replay.index += 1
     draw()
-    setTimeout(animateReplayPlayback, 310)
+    setTimeout(animateReplayPlayback, 150)
   } else {
+    if (minesweeperRuntime.revealEffects.length) {
+      draw()
+      setTimeout(animateReplayPlayback, 16)
+      return
+    }
     draw()
     setTimeout(() => {
       if (minesweeperRuntime.replay !== replay) return

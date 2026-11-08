@@ -610,7 +610,14 @@ function animateReplayPlayback() {
   if (replay.index < replay.events.length) {
     const event = replay.events[replay.index]
     const cell = minesweeperRuntime.board[event.row][event.col]
-    if (event.type === 'open') cell.open = true
+    if (event.type === 'open') {
+      cell.open = true
+      minesweeperRuntime.revealEffects.push({ r: event.row, c: event.col, at: Date.now(), delay: 0, duration: 300 })
+      if (!minesweeperRuntime.revealAnimationRunning) {
+        minesweeperRuntime.revealAnimationRunning = true
+        animateRevealEffects()
+      }
+    }
     else if (event.type === 'flag') cell.flag = event.flag
     replay.index += 1
     draw()

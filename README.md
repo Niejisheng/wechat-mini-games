@@ -71,7 +71,41 @@ node --check src/games/sudoku/logic.js
 └── project.config.json        # 微信开发者工具项目配置
 ```
 
-项目采用逐步拆分的结构。游戏注册表为后续数独和其他小游戏预留统一入口，游戏规则优先保持为不依赖 Canvas 的纯模块，便于单独测试和复用。当前两个游戏已经拥有独立的触摸控制器，`game.js` 负责应用级页面切换和 Canvas 初始化；绘制、动画和剩余状态管理会继续迁移到对应游戏目录中。
+项目采用按游戏隔离的结构。游戏注册表负责首页元数据和游戏工厂，游戏会话统一提供 `enter`、`exit`、`draw`、`onTouchStart` 和 `onTouchEnd` 生命周期。每个游戏的规则、视图、输入控制和运行时状态都位于自己的目录中，`game.js` 只负责 Canvas 初始化、首页、页面切换和会话转发。
+
+## 后续开发约定
+
+修改已有游戏时，优先只查看和修改对应目录：
+
+```text
+src/games/minesweeper/   # 扫雷
+src/games/sudoku/        # 数独
+```
+
+规则修改放在 `logic.js`，Canvas 绘制放在 `view.js`，触摸和长按放在 `controller.js`，状态、计时器、动画调度和生命周期放在 `game.js`。除非修改公共接口、首页或共享工具，否则不需要了解其他游戏的内部实现。
+
+新增游戏时，创建如下目录：
+
+```text
+src/games/new-game/
+├── logic.js
+├── controller.js
+├── view.js
+└── game.js
+```
+
+然后在 `src/app/game-registry.js` 注册游戏名称、描述、图标元数据和 `create` 工厂。首页会根据注册表自动生成入口，会话层会根据工厂创建游戏实例。
+
+跨电脑继续开发时，先阅读本 README 的项目结构和本节约定，再运行规则测试和语法检查：
+
+```sh
+node tests/app.registry.test.js
+node tests/minesweeper.logic.test.js
+node tests/sudoku.logic.test.js
+node --check game.js
+```
+
+Canvas 布局、触摸命中区域、长按和动画仍需要在微信开发者工具或真机上验证。
 
 数独当前使用固定初始题目，题目生成、难度切换、存档和完整通关反馈会在基础交互稳定后继续移植。
 

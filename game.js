@@ -213,8 +213,14 @@ const minesweeperInput = minesweeperController.createController({
   getBoardColumns: () => boardColumns, getMineCount: () => minesweeperRuntime.mineCount,
   countFlags: () => minesweeperLogic.countFlags(minesweeperRuntime.board), reveal: revealCell,
   flagCell: (r, c, x, y) => {
-    const fromX = x + (x < W / 2 ? -minesweeperRuntime.cellSize * 2.2 : minesweeperRuntime.cellSize * 2.2)
-    const fromY = y - minesweeperRuntime.cellSize * 2.4
+    const boardCenterX = minesweeperRuntime.boardX + boardColumns * minesweeperRuntime.cellSize / 2
+    const boardCenterY = minesweeperRuntime.boardY + minesweeperRuntime.boardRows * minesweeperRuntime.cellSize / 2
+    const deltaX = x - boardCenterX
+    const deltaY = y - boardCenterY
+    const distance = Math.hypot(deltaX, deltaY)
+    const offset = minesweeperRuntime.cellSize * 1.8
+    const fromX = boardCenterX - (distance ? deltaX / distance * offset : offset)
+    const fromY = boardCenterY - (distance ? deltaY / distance * offset : offset)
     minesweeperRuntime.flagAnimation = { r, c, fromX, fromY, at: Date.now() }
     if (typeof wx.vibrateShort === 'function') {
       try { wx.vibrateShort({ type: 'light' }) } catch (error) { /* ignore unavailable vibration */ }

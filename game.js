@@ -3,13 +3,11 @@ const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
 const { createMinesweeperView } = require('./src/games/minesweeper/view')
-const { createMinesweeperGame, createMinesweeperRuntime } = require('./src/games/minesweeper/game')
+const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
-const { createSudokuGame, createSudokuRuntime } = require('./src/games/sudoku/game')
+const { createSudokuGame, createSudokuRuntime, createSudokuController } = require('./src/games/sudoku/game')
 const { touchPosition } = require('./src/shared/input')
-const minesweeperController = require('./src/games/minesweeper/controller')
-const sudokuController = require('./src/games/sudoku/controller')
 const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
 const { roundRect, text } = canvasTools
 const minesweeperView = createMinesweeperView({ ctx, roundRect, text })
@@ -302,7 +300,7 @@ function stopSudokuTimer() {
 function draw() { if (screen === 'home') drawHome(); else if (gameSessions && gameSessions[screen]) gameSessions[screen].draw(); else if (screen === 'minesweeper') drawMinesweeper(); else drawSudoku() }
 draw()
 
-const minesweeperInput = minesweeperController.createController({
+const minesweeperInput = createMinesweeperController({
   width: () => W, height: () => H, draw,
   isBusy: () => Boolean(minesweeperRuntime.failureSequence || minesweeperRuntime.winCelebrationRunning),
   isGameMode: () => minesweeperRuntime.active, isHome: () => screen === 'home',
@@ -339,7 +337,7 @@ const minesweeperInput = minesweeperController.createController({
   clearPressedArrow: () => { minesweeperRuntime.pressedArrow = '' }
 })
 
-const sudokuInput = sudokuController.createController({
+const sudokuInput = createSudokuController({
   width: () => W, height: () => H, getBoardX: () => sudokuRuntime.boardX, getBoardY: () => sudokuRuntime.boardY,
   getMode: () => sudokuRuntime.mode,
   getCellSize: () => sudokuRuntime.cellSize, getFilter: () => sudokuRuntime.game.filter,

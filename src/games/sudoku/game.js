@@ -1,4 +1,5 @@
 const { createGameSession } = require('../../app/game-session')
+const controllerModule = require('./controller')
 
 function createSudokuRuntime(logic) {
   const runtime = { game: logic.gameFromPuzzle(), mode: 'menu', difficultyIndex: 0, difficultyFrom: 0, difficultyTo: 0, difficultyProgress: 1, pressedArrow: '', arrowEffect: { side: '', phase: 'idle', progress: 1, rotation: 0 }, celebration: null, celebrationAt: 0, startPressed: false, startPressAt: 0, elapsedSeconds: 0, timer: null, boardX: 20, boardY: 150, cellSize: 36 }
@@ -19,4 +20,8 @@ function createSudokuGame({ draw, controller, enter, exit, destroy }) {
   return { id: 'sudoku', ...createGameSession({ draw, controller, enter, exit, destroy }) }
 }
 
-module.exports = { createSudokuGame, createSudokuRuntime }
+function createSudokuController(deps) {
+  return controllerModule.createController(deps)
+}
+
+module.exports = { createSudokuGame, createSudokuRuntime, createSudokuController }

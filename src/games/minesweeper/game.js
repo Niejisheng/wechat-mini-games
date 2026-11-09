@@ -1,4 +1,5 @@
 const { createGameSession } = require('../../app/game-session')
+const controllerModule = require('./controller')
 
 function createMinesweeperRuntime(logic) {
   const runtime = { board: [], boardRows: 9, mineCount: 10, status: 'idle', active: false, boardCommitted: false, initialBoard: null, finalBoard: null, clickHistory: [], replay: null, startedAt: 0, elapsedSeconds: 0, difficultyIndex: 0, timer: null, failureSequence: null, explodedMine: null, winCelebration: null, winCelebrationRunning: false, revealEffects: [], revealAnimationRunning: false, collapseEffects: [], flagAnimation: null, numberFeedback: null, pressedArrow: '', difficultyFrom: 0, difficultyTo: 0, difficultyProgress: 1, arrowEffect: { side: '', phase: 'idle', progress: 1, rotation: 0 }, startPressed: false, startPressAt: 0, startLongPress: false, boardX: 20, boardY: 150, cellSize: 36, audioContext: null }
@@ -20,4 +21,8 @@ function createMinesweeperGame({ draw, controller, enter, exit, destroy }) {
   return { id: 'minesweeper', ...createGameSession({ draw, controller, enter, exit, destroy }) }
 }
 
-module.exports = { createMinesweeperGame, createMinesweeperRuntime }
+function createMinesweeperController(deps) {
+  return controllerModule.createController(deps)
+}
+
+module.exports = { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController }

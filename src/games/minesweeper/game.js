@@ -56,6 +56,19 @@ function createMinesweeperRuntime(logic) {
     runtime.board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
   }
   runtime.neighbors = (row, col, columns) => logic.neighbors(row, col, runtime.boardRows, columns)
+  runtime.beginWinCelebration = (draw, onComplete) => {
+    if (runtime.winCelebrationRunning) return false
+    runtime.winCelebration = { at: Date.now() }
+    runtime.winCelebrationRunning = true
+    const frame = () => {
+      if (!runtime.winCelebration) return
+      draw()
+      if (Date.now() - runtime.winCelebration.at < 3600) setTimeout(frame, 16)
+      else { runtime.winCelebrationRunning = false; draw(); if (onComplete) onComplete() }
+    }
+    frame()
+    return true
+  }
   runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); const tick = () => { if (!isActive() || runtime.status !== 'playing' || !runtime.startedAt) return; runtime.elapsedSeconds = Math.floor((Date.now() - runtime.startedAt) / 1000); draw(); runtime.timer = setTimeout(tick, 1000) }; tick() }
   return runtime
 }

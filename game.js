@@ -644,12 +644,7 @@ function drawGameResult() {
   minesweeperView.drawResultPanel({ width: W, height: H, won, drawDifficultySelector: drawResultDifficultySelector })
 }
 
-function startWinCelebration() {
-  if (minesweeperRuntime.winCelebrationRunning) return
-  minesweeperRuntime.winCelebration = { at: Date.now() }
-  minesweeperRuntime.winCelebrationRunning = true
-  animateWinCelebration()
-}
+function startWinCelebration() { minesweeperRuntime.beginWinCelebration(draw, () => { if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback() }) }
 
 function startReplayPlayback() {
   minesweeperRuntime.finalBoard = minesweeperLogic.cloneBoard(minesweeperRuntime.board)

@@ -318,7 +318,7 @@ const sudokuInput = createSudokuController({
 
 gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput, exit: () => minesweeperRuntime.stopTimer() }))
 gameRegistry.setGameFactory('sudoku', () => createSudokuGame({ draw: drawSudoku, controller: sudokuInput, exit: () => stopSudokuTimer() }))
-gameSessions = Object.fromEntries(gameRegistry.listGames().filter(game => game.create).map(game => [game.id, game.create()]))
+gameSessions = Object.fromEntries(gameRegistry.listGames().map(game => [game.id, gameRegistry.createGame(game.id, { ctx, width: W, height: H, draw })]).filter(([, session]) => session))
 
 function enterGame(gameId) {
   const session = gameSessions[gameId]

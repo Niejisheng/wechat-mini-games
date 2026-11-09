@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
 const { createMinesweeperView } = require('./src/games/minesweeper/view')
-const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController } = require('./src/games/minesweeper/game')
+const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController, createMinesweeperBoardRenderer } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
 const { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer } = require('./src/games/sudoku/game')
@@ -93,8 +93,10 @@ function drawSudokuIcon(x, y, color) {
   }
 }
 
+const drawMinesweeperBoard = createMinesweeperBoardRenderer({ runtime: minesweeperRuntime, logic: minesweeperLogic, view: minesweeperView, width: W, height: H, text, drawWin: () => drawBoardWinCelebration(), drawResult: won => minesweeperView.drawResultPanel({ width: W, height: H, won, drawDifficultySelector: drawResultDifficultySelector }) })
+
 function drawMinesweeper() {
-  if (minesweeperRuntime.active) { ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H); drawGameBoard(); return }
+  if (minesweeperRuntime.active) { ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, W, H); drawMinesweeperBoard(); return }
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
   minesweeperView.drawBackArrow(26, 72)

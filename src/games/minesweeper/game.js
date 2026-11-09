@@ -68,4 +68,33 @@ function createMinesweeperController(deps) {
   return controllerModule.createController(deps)
 }
 
-module.exports = { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController }
+function createMinesweeperBoardRenderer({ runtime, logic, view, width, height, text, drawWin, drawResult }) {
+  return function drawBoard() {
+    const replayLayout = runtime.status === 'won' && runtime.difficultyIndex >= 2
+    const maxWidth = replayLayout ? Math.min(width - 36, 330) : Math.min(width - 36, 360)
+    const reservedTop = 112
+    const reservedBottom = replayLayout ? 180 : 148
+    const availableHeight = Math.max(180, height - reservedTop - reservedBottom)
+    const widthCellSize = maxWidth / logic.BOARD_COLUMNS
+    const heightCellSize = availableHeight / runtime.boardRows
+    runtime.cellSize = Math.min(widthCellSize, heightCellSize)
+    const boardWidth = runtime.cellSize * logic.BOARD_COLUMNS
+    const gap = Math.max(4, boardWidth * 0.012)
+    runtime.boardX = (width - boardWidth) / 2
+    const boardHeight = runtime.cellSize * runtime.boardRows
+    runtime.boardY = Math.max(96, reservedTop + (height - reservedTop - reservedBottom - boardHeight) / 2)
+    view.drawBackArrow(26, 72)
+    text(String(runtime.mineCount - logic.countFlags(runtime.board)), width / 2 + 1, 82, 18, '#667483', 'left')
+    text(`${runtime.elapsedSeconds}s`, width / 2, 106, 18, '#667483', 'center')
+    for (let row = 0; row < runtime.boardRows; row += 1) for (let col = 0; col < logic.BOARD_COLUMNS; col += 1) {
+      const cell = runtime.board[row][col]
+      const x = runtime.boardX + col * runtime.cellSize
+      const y = runtime.boardY + row * runtime.cellSize
+      view.drawCell({ cell, x, y, cellSize: runtime.cellSize, gap, row, col, effect: runtime.collapseEffects.find(item => item.r === row && item.c === col), flagFx: runtime.flagAnimation && runtime.flagAnimation.r === row && runtime.flagAnimation.c === col ? runtime.flagAnimation : null, exploded: runtime.explodedMine && runtime.explodedMine.r === row && runtime.explodedMine.c === col, failure: runtime.failureSequence, revealEffect: runtime.revealEffects.find(item => item.r === row && item.c === col), drawFlyingFlag: view.drawFlyingFlag, drawMineExplosion: (cx, cy) => view.drawMineExplosion({ x: cx, y: cy, cellSize: runtime.cellSize, progress: runtime.failureSequence ? Math.min(1, Math.max(0, (Date.now() - runtime.failureSequence.at) / 520)) : 1 }), drawRevealOverlay: view.drawRevealOverlay })
+    }
+    if (runtime.status === 'won') runtime.winCelebrationRunning ? drawWin() : drawResult(true)
+    else if (runtime.status === 'lost') drawResult(false)
+  }
+}
+
+module.exports = { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController, createMinesweeperBoardRenderer }

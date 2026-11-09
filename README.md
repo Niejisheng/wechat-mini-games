@@ -72,7 +72,7 @@ node --check src/games/sudoku/logic.js
 └── project.config.json        # 微信开发者工具项目配置
 ```
 
-项目采用按游戏隔离的结构。游戏注册表负责首页元数据和游戏工厂，游戏会话统一提供 `enter`、`exit`、`draw`、`onTouchStart` 和 `onTouchEnd` 生命周期。每个游戏的规则、视图、输入控制和运行时状态都位于自己的目录中，`game.js` 只负责 Canvas 初始化、首页、页面切换和会话转发。
+项目采用按游戏隔离的结构。游戏注册表负责首页元数据和游戏工厂，游戏会话统一提供 `enter`、`exit`、`destroy`、`draw`、`onTouchStart` 和 `onTouchEnd` 生命周期。每个游戏的规则、视图、输入控制和主要运行时状态都位于自己的目录中，`game.js` 负责 Canvas 初始化、首页、页面切换和会话转发。
 
 ## 后续开发约定
 

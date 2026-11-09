@@ -1,6 +1,7 @@
 const canvas = wx.createCanvas()
 const ctx = canvas.getContext('2d')
 const gameRegistry = require('./src/app/game-registry')
+const { createAppContext } = require('./src/app/app-context')
 const minesweeperLogic = require('./src/games/minesweeper/logic')
 const { createMinesweeperView } = require('./src/games/minesweeper/view')
 const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController, createMinesweeperBoardRenderer } = require('./src/games/minesweeper/game')
@@ -318,7 +319,8 @@ const sudokuInput = createSudokuController({
 
 gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput, exit: () => minesweeperRuntime.stopTimer() }))
 gameRegistry.setGameFactory('sudoku', () => createSudokuGame({ draw: drawSudoku, controller: sudokuInput, exit: () => stopSudokuTimer() }))
-gameSessions = Object.fromEntries(gameRegistry.listGames().map(game => [game.id, gameRegistry.createGame(game.id, { ctx, width: W, height: H, draw })]).filter(([, session]) => session))
+const appContext = createAppContext({ ctx, width: W, height: H, draw, roundRect, text })
+gameSessions = Object.fromEntries(gameRegistry.listGames().map(game => [game.id, gameRegistry.createGame(game.id, appContext)]).filter(([, session]) => session))
 
 function enterGame(gameId) {
   const session = gameSessions[gameId]

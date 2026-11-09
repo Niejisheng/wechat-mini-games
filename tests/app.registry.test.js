@@ -1,6 +1,11 @@
 const assert = require('assert')
 const registry = require('../src/app/game-registry')
 const { createGameSession } = require('../src/app/game-session')
+const { createAppContext } = require('../src/app/app-context')
+
+const context = createAppContext({ ctx: {}, width: 320, height: 568, draw() {}, roundRect() {}, text() {} })
+assert.strictEqual(context.width, 320)
+assert.strictEqual(context.height, 568)
 
 const id = `test-${Date.now()}`
 let entered = false

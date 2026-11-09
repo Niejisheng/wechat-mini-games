@@ -7,8 +7,8 @@ function createMinesweeperRuntime(logic) {
   return runtime
 }
 
-function createMinesweeperGame({ draw, controller, enter, exit }) {
-  return { id: 'minesweeper', ...createGameSession({ draw, controller, enter, exit }) }
+function createMinesweeperGame({ draw, controller, enter, exit, destroy }) {
+  return { id: 'minesweeper', ...createGameSession({ draw, controller, enter, exit, destroy }) }
 }
 
 module.exports = { createMinesweeperGame, createMinesweeperRuntime }

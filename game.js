@@ -22,6 +22,7 @@ canvas.height = H * scale
 ctx.scale(scale, scale)
 
 let screen = 'home'
+let currentSession = null
 const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
 
@@ -330,7 +331,7 @@ const minesweeperInput = minesweeperController.createController({
   pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },
   isStartPressed: () => minesweeperRuntime.startPressed,
   releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; initBoard(); draw() } },
-  leaveGame: () => { minesweeperRuntime.stopTimer(); minesweeperRuntime.active = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; draw() },
+  leaveGame: () => { minesweeperRuntime.stopTimer(); minesweeperRuntime.active = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; leaveCurrentGame() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
   releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -342,7 +343,7 @@ const sudokuInput = sudokuController.createController({
   width: () => W, height: () => H, getBoardX: () => sudokuRuntime.boardX, getBoardY: () => sudokuRuntime.boardY,
   getMode: () => sudokuRuntime.mode,
   getCellSize: () => sudokuRuntime.cellSize, getFilter: () => sudokuRuntime.game.filter,
-  leave: () => { sudokuInput.destroy(); stopSudokuTimer(); sudokuRuntime.mode = 'menu'; screen = 'home'; draw() },
+  leave: () => { sudokuInput.destroy(); stopSudokuTimer(); sudokuRuntime.mode = 'menu'; leaveCurrentGame() },
   pressStart: () => { sudokuRuntime.startPressed = true; sudokuRuntime.startPressAt = Date.now(); draw() },
   releaseStart: now => { const shouldStart = now - sudokuRuntime.startPressAt < 450; sudokuRuntime.startPressed = false; if (shouldStart) { sudokuRuntime.mode = 'playing'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); startSudokuTimer() } draw() },
   startGame: () => { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); sudokuRuntime.mode = 'playing'; startSudokuTimer(); draw() },
@@ -360,29 +361,47 @@ const sudokuInput = sudokuController.createController({
   autoNotes: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'auto-notes' }); draw() }
 })
 
-gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput }))
-gameRegistry.setGameFactory('sudoku', () => createSudokuGame({ draw: drawSudoku, controller: sudokuInput }))
+gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput, exit: () => minesweeperRuntime.stopTimer() }))
+gameRegistry.setGameFactory('sudoku', () => createSudokuGame({ draw: drawSudoku, controller: sudokuInput, exit: () => stopSudokuTimer() }))
 gameSessions = Object.fromEntries(gameRegistry.listGames().filter(game => game.create).map(game => [game.id, game.create()]))
 
+function enterGame(gameId) {
+  const session = gameSessions[gameId]
+  if (!session) return false
+  if (currentSession && currentSession !== session) currentSession.exit()
+  currentSession = session
+  currentSession.enter()
+  screen = gameId
+  draw()
+  return true
+}
+
+function leaveCurrentGame() {
+  if (!currentSession) return
+  currentSession.exit()
+  currentSession = null
+  screen = 'home'
+  draw()
+}
+
 wx.onTouchStart(event => {
-  if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchStart(event); return }
+  if (currentSession) { currentSession.onTouchStart(event); return }
 })
 
 wx.onTouchEnd(event => {
-  if (screen === 'sudoku' || screen === 'minesweeper') { gameSessions[screen].onTouchEnd(event); return }
+  if (currentSession) { currentSession.onTouchEnd(event); return }
   const touch = event.changedTouches[0]
   const { x, y } = touchPosition(touch)
   if (screen === 'home') {
     const index = Math.floor((y - 276) / 98)
     const game = y >= 276 && index >= 0 && index < gameRegistry.listGames().length ? gameRegistry.listGames()[index] : null
     if (game && y <= 352 + index * 98) {
-      screen = game.id
       if (game.id === 'sudoku') { sudokuRuntime.mode = 'menu'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(); stopSudokuTimer() }
-      draw()
+      enterGame(game.id)
       return
     }
   }
-  if (screen === 'minesweeper' && y < 120 && x < 90) { screen = 'home'; draw(); return }
+  if (screen === 'minesweeper' && y < 120 && x < 90) { leaveCurrentGame(); return }
   if (screen === 'minesweeper' && Math.abs(y - H * 0.56) < 40) {
     const direction = x < W / 2 ? -1 : 1
     const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction))

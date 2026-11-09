@@ -7,8 +7,8 @@ function createSudokuRuntime(logic) {
   return runtime
 }
 
-function createSudokuGame({ draw, controller, enter, exit }) {
-  return { id: 'sudoku', ...createGameSession({ draw, controller, enter, exit }) }
+function createSudokuGame({ draw, controller, enter, exit, destroy }) {
+  return { id: 'sudoku', ...createGameSession({ draw, controller, enter, exit, destroy }) }
 }
 
 module.exports = { createSudokuGame, createSudokuRuntime }

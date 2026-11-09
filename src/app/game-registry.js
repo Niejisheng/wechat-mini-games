@@ -36,4 +36,9 @@ function setGameFactory(gameId, factory) {
   return true
 }
 
-module.exports = { getGame, listGames, registerGame, setGameFactory }
+function createGame(gameId, context) {
+  const game = getGame(gameId)
+  return game && typeof game.create === 'function' ? game.create(context) : null
+}
+
+module.exports = { getGame, listGames, registerGame, setGameFactory, createGame }

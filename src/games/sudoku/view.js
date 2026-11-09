@@ -118,7 +118,7 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
   }
 
   function drawResultPanel({ width, height }) {
-    const panelTop = height * 0.68
+    const panelTop = height * 0.745
     ctx.save()
     ctx.fillStyle = 'rgba(247, 249, 251, 0.96)'
     ctx.beginPath()

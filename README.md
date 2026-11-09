@@ -95,7 +95,18 @@ src/games/new-game/
 └── game.js
 ```
 
-然后在 `src/app/game-registry.js` 注册游戏名称、描述、图标元数据和 `create` 工厂。首页会根据注册表自动生成入口，会话层会根据工厂创建游戏实例。
+然后在 `src/app/game-registry.js` 注册游戏名称、描述、图标元数据，并通过 `setGameFactory` 设置会话工厂。首页会根据注册表自动生成入口，应用层通过 `createGame` 创建游戏实例。
+
+游戏会话统一提供以下接口：
+
+```text
+enter()
+exit()
+destroy()
+draw()
+onTouchStart(event)
+onTouchEnd(event)
+```
 
 跨电脑继续开发时，先阅读本 README 的项目结构和本节约定，再运行规则测试和语法检查：
 

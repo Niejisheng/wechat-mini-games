@@ -118,6 +118,25 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
   }
 
   function drawResultPanel({ width, height }) {
+    const panelTop = height * 0.68
+    ctx.save()
+    ctx.fillStyle = 'rgba(247, 249, 251, 0.96)'
+    ctx.beginPath()
+    ctx.moveTo(0, panelTop + 18)
+    ctx.quadraticCurveTo(0, panelTop, 18, panelTop)
+    ctx.lineTo(width - 18, panelTop)
+    ctx.quadraticCurveTo(width, panelTop, width, panelTop + 18)
+    ctx.lineTo(width, height)
+    ctx.lineTo(0, height)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#e1e7ec'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(18, panelTop)
+    ctx.lineTo(width - 18, panelTop)
+    ctx.stroke()
+    ctx.restore()
     text('恭喜通关', width / 2, height * 0.765, 22, '#258c55', 'center')
     roundRect(44, height * 0.79, width - 88, 52, 26, '#8293cf')
     text('新游戏', width / 2, height * 0.79 + 26, 16, '#ffffff', 'center')

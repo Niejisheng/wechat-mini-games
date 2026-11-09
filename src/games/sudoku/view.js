@@ -79,14 +79,14 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
     ctx.fillStyle = '#f7f9fb'; ctx.fillRect(0, 0, getWidth(), getHeight())
     ctx.strokeStyle = '#8293a8'; ctx.lineWidth = 1.8; ctx.lineCap = 'round'
     // 第一行只保留返回按钮，标题和状态信息向下错开。
-    ctx.beginPath(); ctx.moveTo(16, 44); ctx.lineTo(10, 50); ctx.lineTo(16, 56); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(30, 52); ctx.lineTo(24, 58); ctx.lineTo(30, 64); ctx.stroke()
     text('片刻专注，步步有解', 24, 88, 25, '#27313b')
     text('.', 24 + ctx.measureText('片刻专注，步步有解').width + 2, 88, 25, '#8293cf')
     ctx.fillStyle = '#78a994'; ctx.beginPath(); ctx.arc(28, 128, 3.5, 0, Math.PI * 2); ctx.fill()
     text(difficulty, 40, 128, 13, '#33414d')
     text('/', 78, 128, 12, '#a4afb9')
     text('多想一步', 98, 128, 12, '#8293a8')
-    drawClock(getWidth() - 76, 128)
+    drawClock(getWidth() - 60, 128)
     text(formatTime(elapsed), getWidth() - 22, 128, 13, '#8293a8', 'right')
   }
 

@@ -26,7 +26,7 @@ function createSudokuController(deps) {
 
 function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, difficulties, drawDifficultySelector, drawChevron }) {
   return function drawBoard() {
-    view.drawPageHeader({ elapsed: runtime.elapsedSeconds })
+    view.drawPageHeader({ elapsed: runtime.elapsedSeconds, difficulty: difficulties[runtime.difficultyIndex].name })
     const layout = view.layout()
     runtime.cellSize = layout.cellSize
     runtime.boardX = layout.boardX

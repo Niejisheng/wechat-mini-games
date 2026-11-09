@@ -168,37 +168,7 @@ function drawBottomActions() {
 
 function drawSudoku() {
   if (sudokuRuntime.mode === 'menu') { drawSudokuMenu(); return }
-  sudokuView.drawPageHeader({ elapsed: sudokuRuntime.elapsedSeconds })
-  const layout = sudokuView.layout()
-  const width = layout.width
-  sudokuRuntime.cellSize = layout.cellSize
-  sudokuRuntime.boardX = layout.boardX
-  sudokuRuntime.boardY = layout.boardY
-  sudokuView.drawControls({ width: W, height: H, canUndo: sudokuRuntime.game.history.length > 0, selected: sudokuRuntime.game.selected, won: sudokuRuntime.game.won })
-  const filterY = sudokuRuntime.boardY - 35
-  const filterCaptionY = filterY - 38
-  sudokuView.drawFilterCaption({ y: filterCaptionY })
-  sudokuView.drawFilterCards({ boardX: sudokuRuntime.boardX, filterY, size: sudokuRuntime.cellSize, filter: sudokuRuntime.game.filter, values: sudokuRuntime.game.values })
-  const selected = sudokuRuntime.game.selected
-  const activeDigit = sudokuRuntime.game.filter === null && selected !== null ? sudokuRuntime.game.values[selected] : 0
-  const errors = sudokuLogic.conflicts(sudokuRuntime.game.values)
-  const searchMode = sudokuRuntime.game.filter !== null
-  for (let row = 0; row < 9; row += 1) for (let col = 0; col < 9; col += 1) {
-    const index = row * 9 + col; const x = sudokuRuntime.boardX + col * sudokuRuntime.cellSize; const y = sudokuRuntime.boardY + row * sudokuRuntime.cellSize
-    const possible = sudokuRuntime.game.filter !== null && !sudokuRuntime.game.values[index] && Boolean(sudokuLogic.availableCandidates(sudokuRuntime.game.values, index, sudokuRuntime.game.exclusions) & (1 << sudokuRuntime.game.filter))
-    const related = !searchMode && selected !== null && sudokuLogic.PEERS[selected].includes(index)
-    const same = !searchMode && activeDigit && sudokuRuntime.game.values[index] === activeDigit
-    const value = sudokuRuntime.game.values[index]
-    sudokuView.drawCell({ index, x, y, size: sudokuRuntime.cellSize, value, given: sudokuRuntime.game.givens[index], notes: sudokuRuntime.game.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
-  }
-  sudokuView.drawGridBorders({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width })
-  sudokuView.drawKeypad({ boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, size: sudokuRuntime.cellSize, boardWidth: width, noteMode: sudokuRuntime.game.noteMode })
-  sudokuView.drawHint({ filter: sudokuRuntime.game.filter })
-  if (sudokuRuntime.game.won) {
-    sudokuView.drawResultPanel({ width: W, height: H })
-    minesweeperView.drawResultDifficultySelector({ width: W, height: H, difficulties, index: sudokuRuntime.difficultyIndex, from: sudokuRuntime.difficultyFrom, to: sudokuRuntime.difficultyTo, progress: sudokuRuntime.difficultyProgress, drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
-  }
-  sudokuView.drawCelebration({ event: sudokuRuntime.celebration, startedAt: sudokuRuntime.celebrationAt, width: W, height: H, boardX: sudokuRuntime.boardX, boardY: sudokuRuntime.boardY, cellSize: sudokuRuntime.cellSize })
+  drawSudokuBoard()
 }
 
 function playSudokuCelebration(event) {
@@ -606,35 +576,7 @@ function initBoard() { minesweeperRuntime.initBoard(difficulties[minesweeperRunt
 function replayBoard() { minesweeperRuntime.resetForReplay(); draw() }
 
 function neighbors(r, c) { return minesweeperRuntime.neighbors(r, c, boardColumns) }
-function drawGameBoard() {
-  const replayLayout = minesweeperRuntime.status === 'won' && minesweeperRuntime.difficultyIndex >= 2
-  const maxWidth = replayLayout ? Math.min(W - 36, 330) : Math.min(W - 36, 360)
-  const reservedTop = 112
-  const reservedBottom = replayLayout ? 180 : 148
-  const availableHeight = Math.max(180, H - reservedTop - reservedBottom)
-  const widthCellSize = maxWidth / boardColumns
-  const heightCellSize = availableHeight / minesweeperRuntime.boardRows
-  minesweeperRuntime.cellSize = Math.min(widthCellSize, heightCellSize)
-  const width = minesweeperRuntime.cellSize * boardColumns
-  const gap = Math.max(4, width * 0.012)
-  minesweeperRuntime.boardX = (W - width) / 2
-  const boardHeight = minesweeperRuntime.cellSize * minesweeperRuntime.boardRows
-  minesweeperRuntime.boardY = Math.max(96, reservedTop + (H - reservedTop - reservedBottom - boardHeight) / 2)
-  const flagCount = minesweeperLogic.countFlags(minesweeperRuntime.board)
-  const statusY = 82
-  minesweeperView.drawBackArrow(26, 72)
-  if (mineStatusIcon.width) ctx.drawImage(mineStatusIcon, W / 2 - 25, statusY - 11, 22, 22)
-  text(String(minesweeperRuntime.mineCount - flagCount), W / 2 + 1, statusY, 18, '#667483', 'left')
-  text(`${minesweeperRuntime.elapsedSeconds}s`, W / 2, statusY + 24, 18, '#667483', 'center')
-  for (let r = 0; r < minesweeperRuntime.boardRows; r += 1) for (let c = 0; c < boardColumns; c += 1) {
-    const cell = minesweeperRuntime.board[r][c]; const x = minesweeperRuntime.boardX + c * minesweeperRuntime.cellSize; const y = minesweeperRuntime.boardY + r * minesweeperRuntime.cellSize
-    minesweeperView.drawCell({ cell, x, y, cellSize: minesweeperRuntime.cellSize, gap, row: r, col: c, effect: minesweeperRuntime.collapseEffects.find(item => item.r === r && item.c === c), flagFx: minesweeperRuntime.flagAnimation && minesweeperRuntime.flagAnimation.r === r && minesweeperRuntime.flagAnimation.c === c ? minesweeperRuntime.flagAnimation : null, exploded: minesweeperRuntime.explodedMine && minesweeperRuntime.explodedMine.r === r && minesweeperRuntime.explodedMine.c === c, failure: minesweeperRuntime.failureSequence, revealEffect: minesweeperRuntime.revealEffects.find(item => item.r === r && item.c === c), drawFlyingFlag: minesweeperView.drawFlyingFlag, drawMineExplosion: (cx, cy) => minesweeperView.drawMineExplosion({ x: cx, y: cy, cellSize: minesweeperRuntime.cellSize, progress: minesweeperRuntime.failureSequence ? Math.min(1, Math.max(0, (Date.now() - minesweeperRuntime.failureSequence.at) / 520)) : 1 }), drawRevealOverlay: minesweeperView.drawRevealOverlay })
-  }
-  if (minesweeperRuntime.status === 'won') {
-    if (minesweeperRuntime.winCelebrationRunning) drawBoardWinCelebration()
-    else drawGameResult()
-  } else if (minesweeperRuntime.status === 'lost') drawGameResult()
-}
+function drawGameBoard() { drawMinesweeperBoard() }
 
 function drawBoardWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return

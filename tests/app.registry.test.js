@@ -8,6 +8,7 @@ let destroyed = false
 assert.strictEqual(registry.registerGame({ id, name: '测试游戏', description: '', icon: 'test' }), true)
 assert.strictEqual(registry.registerGame({ id, name: '重复游戏' }), false)
 assert.strictEqual(registry.setGameFactory(id, () => createGameSession({ draw() {}, controller: { onTouchStart() {}, onTouchEnd() {} }, enter() { entered = true }, destroy() { destroyed = true } })), true)
+assert.ok(registry.createGame(id))
 const definition = registry.getGame(id)
 const session = definition.create()
 session.enter()

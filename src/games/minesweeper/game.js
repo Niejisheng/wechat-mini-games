@@ -69,6 +69,40 @@ function createMinesweeperRuntime(logic) {
     frame()
     return true
   }
+  runtime.beginFailure = (row, col, draw, playClick) => {
+    runtime.revealEffects = []
+    runtime.revealAnimationRunning = false
+    const revealQueue = []
+    runtime.board.forEach((line, rowIndex) => line.forEach((cell, colIndex) => {
+      if (cell.mine && !(rowIndex === row && colIndex === col) && !cell.flag) revealQueue.push([rowIndex, colIndex])
+    }))
+    runtime.board[row][col].open = true
+    runtime.explodedMine = { r: row, c: col }
+    runtime.status = 'failing'
+    runtime.failureSequence = { r: row, c: col, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
+    playClick()
+    draw()
+    setTimeout(() => runtime.advanceFailure(draw), 360)
+  }
+  runtime.advanceFailure = draw => {
+    const sequence = runtime.failureSequence
+    if (!sequence) return
+    if (sequence.phase === 'freeze') { sequence.phase = 'explode'; sequence.at = Date.now(); runtime.animateFailure(draw); return }
+    if (sequence.phase === 'explode') { sequence.phase = 'reveal'; sequence.at = Date.now(); sequence.revealed = 0; runtime.animateFailure(draw); return }
+    const next = sequence.revealQueue[sequence.revealed]
+    if (next) { runtime.board[next[0]][next[1]].open = true; sequence.revealed += 1; draw(); setTimeout(() => runtime.advanceFailure(draw), 72); return }
+    runtime.failureSequence = null
+    runtime.status = 'lost'
+    draw()
+  }
+  runtime.animateFailure = draw => {
+    const sequence = runtime.failureSequence
+    if (!sequence) return
+    draw()
+    const duration = sequence.phase === 'explode' ? 520 : 0
+    if (duration && Date.now() - sequence.at < duration) setTimeout(() => runtime.animateFailure(draw), 16)
+    else runtime.advanceFailure(draw)
+  }
   runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); const tick = () => { if (!isActive() || runtime.status !== 'playing' || !runtime.startedAt) return; runtime.elapsedSeconds = Math.floor((Date.now() - runtime.startedAt) / 1000); draw(); runtime.timer = setTimeout(tick, 1000) }; tick() }
   return runtime
 }

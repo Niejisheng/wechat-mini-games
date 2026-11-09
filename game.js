@@ -502,57 +502,11 @@ function playFailureClick() {
   }
 }
 
-function triggerFailureSequence(r, c) {
-  minesweeperRuntime.revealEffects = []
-  minesweeperRuntime.revealAnimationRunning = false
-  const revealQueue = []
-  minesweeperRuntime.board.forEach((row, rowIndex) => row.forEach((cell, colIndex) => {
-    if (cell.mine && !(rowIndex === r && colIndex === c) && !cell.flag) revealQueue.push([rowIndex, colIndex])
-  }))
-  minesweeperRuntime.board[r][c].open = true
-  minesweeperRuntime.explodedMine = { r, c }
-  minesweeperRuntime.status = 'failing'
-  minesweeperRuntime.failureSequence = { r, c, phase: 'freeze', at: Date.now(), revealQueue, revealed: 0 }
-  playFailureClick()
-  draw()
-  setTimeout(advanceFailureSequence, 360)
-}
+function triggerFailureSequence(r, c) { minesweeperRuntime.beginFailure(r, c, draw, playFailureClick) }
 
-function advanceFailureSequence() {
-  if (!minesweeperRuntime.failureSequence) return
-  if (minesweeperRuntime.failureSequence.phase === 'freeze') {
-    minesweeperRuntime.failureSequence.phase = 'explode'
-    minesweeperRuntime.failureSequence.at = Date.now()
-    animateFailureFrame()
-    return
-  }
-  if (minesweeperRuntime.failureSequence.phase === 'explode') {
-    minesweeperRuntime.failureSequence.phase = 'reveal'
-    minesweeperRuntime.failureSequence.at = Date.now()
-    minesweeperRuntime.failureSequence.revealed = 0
-    animateFailureFrame()
-    return
-  }
-  const next = minesweeperRuntime.failureSequence.revealQueue[minesweeperRuntime.failureSequence.revealed]
-  if (next) {
-    minesweeperRuntime.board[next[0]][next[1]].open = true
-    minesweeperRuntime.failureSequence.revealed += 1
-    draw()
-    setTimeout(advanceFailureSequence, 72)
-    return
-  }
-  minesweeperRuntime.failureSequence = null
-  minesweeperRuntime.status = 'lost'
-  draw()
-}
+function advanceFailureSequence() { minesweeperRuntime.advanceFailure(draw) }
 
-function animateFailureFrame() {
-  if (!minesweeperRuntime.failureSequence) return
-  draw()
-  const duration = minesweeperRuntime.failureSequence.phase === 'explode' ? 520 : 0
-  if (duration && Date.now() - minesweeperRuntime.failureSequence.at < duration) setTimeout(animateFailureFrame, 16)
-  else advanceFailureSequence()
-}
+function animateFailureFrame() { minesweeperRuntime.animateFailure(draw) }
 
 function initBoard() { minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns) }
 

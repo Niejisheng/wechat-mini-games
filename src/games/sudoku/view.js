@@ -130,12 +130,6 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
     ctx.lineTo(0, height)
     ctx.closePath()
     ctx.fill()
-    ctx.strokeStyle = '#e1e7ec'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(18, panelTop)
-    ctx.lineTo(width - 18, panelTop)
-    ctx.stroke()
     ctx.restore()
     text('恭喜通关', width / 2, height * 0.765, 22, '#258c55', 'center')
     roundRect(44, height * 0.79, width - 88, 52, 26, '#8293cf')

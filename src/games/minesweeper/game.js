@@ -103,6 +103,40 @@ function createMinesweeperRuntime(logic) {
     if (duration && Date.now() - sequence.at < duration) setTimeout(() => runtime.animateFailure(draw), 16)
     else runtime.advanceFailure(draw)
   }
+  runtime.beginReplay = (draw, animateReveal) => {
+    runtime.finalBoard = logic.cloneBoard(runtime.board)
+    runtime.board = logic.cloneBoard(runtime.initialBoard)
+    runtime.replay = { index: 0, events: [...runtime.clickHistory] }
+    const play = () => {
+      const replay = runtime.replay
+      if (!replay) return
+      if (replay.index < replay.events.length) {
+        const event = replay.events[replay.index]
+        const cell = runtime.board[event.row][event.col]
+        if (event.type === 'open') {
+          cell.open = true
+          runtime.revealEffects.push({ r: event.row, c: event.col, at: Date.now(), delay: 0, duration: 300 })
+          animateReveal()
+        } else if (event.type === 'flag') cell.flag = event.flag
+        replay.index += 1
+        draw()
+        setTimeout(play, 150)
+      } else if (runtime.revealEffects.length) {
+        draw()
+        setTimeout(play, 16)
+      } else {
+        draw()
+        setTimeout(() => {
+          if (runtime.replay !== replay) return
+          runtime.board = logic.cloneBoard(runtime.initialBoard)
+          replay.index = 0
+          draw()
+          setTimeout(play, 150)
+        }, 1800)
+      }
+    }
+    play()
+  }
   runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); const tick = () => { if (!isActive() || runtime.status !== 'playing' || !runtime.startedAt) return; runtime.elapsedSeconds = Math.floor((Date.now() - runtime.startedAt) / 1000); draw(); runtime.timer = setTimeout(tick, 1000) }; tick() }
   return runtime
 }

@@ -600,47 +600,9 @@ function drawGameResult() {
 
 function startWinCelebration() { minesweeperRuntime.beginWinCelebration(draw, () => { if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback() }) }
 
-function startReplayPlayback() {
-  minesweeperRuntime.finalBoard = minesweeperLogic.cloneBoard(minesweeperRuntime.board)
-  minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
-  minesweeperRuntime.replay = { index: 0, events: [...minesweeperRuntime.clickHistory] }
-  animateReplayPlayback()
-}
+function startReplayPlayback() { minesweeperRuntime.beginReplay(draw, () => { if (!minesweeperRuntime.revealAnimationRunning) { minesweeperRuntime.revealAnimationRunning = true; animateRevealEffects() } }) }
 
-function animateReplayPlayback() {
-  const replay = minesweeperRuntime.replay
-  if (!replay) return
-  if (replay.index < replay.events.length) {
-    const event = replay.events[replay.index]
-    const cell = minesweeperRuntime.board[event.row][event.col]
-    if (event.type === 'open') {
-      cell.open = true
-      minesweeperRuntime.revealEffects.push({ r: event.row, c: event.col, at: Date.now(), delay: 0, duration: 300 })
-      if (!minesweeperRuntime.revealAnimationRunning) {
-        minesweeperRuntime.revealAnimationRunning = true
-        animateRevealEffects()
-      }
-    }
-    else if (event.type === 'flag') cell.flag = event.flag
-    replay.index += 1
-    draw()
-    setTimeout(animateReplayPlayback, 150)
-  } else {
-    if (minesweeperRuntime.revealEffects.length) {
-      draw()
-      setTimeout(animateReplayPlayback, 16)
-      return
-    }
-    draw()
-    setTimeout(() => {
-      if (minesweeperRuntime.replay !== replay) return
-      minesweeperRuntime.board = minesweeperLogic.cloneBoard(minesweeperRuntime.initialBoard)
-      replay.index = 0
-      draw()
-      setTimeout(animateReplayPlayback, 150)
-    }, 1800)
-  }
-}
+function animateReplayPlayback() { minesweeperRuntime.beginReplay(draw, () => animateRevealEffects()) }
 
 function animateWinCelebration() {
   if (!minesweeperRuntime.winCelebration) return

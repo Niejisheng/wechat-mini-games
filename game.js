@@ -331,7 +331,7 @@ const minesweeperInput = minesweeperController.createController({
   pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },
   isStartPressed: () => minesweeperRuntime.startPressed,
   releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; initBoard(); draw() } },
-  leaveGame: () => { minesweeperRuntime.stopTimer(); minesweeperRuntime.active = false; minesweeperRuntime.status = 'idle'; minesweeperRuntime.startedAt = 0; minesweeperRuntime.elapsedSeconds = 0; minesweeperRuntime.flagAnimation = null; minesweeperRuntime.collapseEffects = []; leaveCurrentGame() },
+  leaveGame: () => { minesweeperRuntime.resetSession(); leaveCurrentGame() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
   releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -345,9 +345,9 @@ const sudokuInput = sudokuController.createController({
   getCellSize: () => sudokuRuntime.cellSize, getFilter: () => sudokuRuntime.game.filter,
   leave: () => { sudokuInput.destroy(); stopSudokuTimer(); sudokuRuntime.mode = 'menu'; leaveCurrentGame() },
   pressStart: () => { sudokuRuntime.startPressed = true; sudokuRuntime.startPressAt = Date.now(); draw() },
-  releaseStart: now => { const shouldStart = now - sudokuRuntime.startPressAt < 450; sudokuRuntime.startPressed = false; if (shouldStart) { sudokuRuntime.mode = 'playing'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); startSudokuTimer() } draw() },
-  startGame: () => { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); sudokuRuntime.mode = 'playing'; startSudokuTimer(); draw() },
-  restartGame: () => { sudokuRuntime.game = sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex)); sudokuRuntime.mode = 'playing'; startSudokuTimer(); draw() },
+  releaseStart: now => { const shouldStart = now - sudokuRuntime.startPressAt < 450; sudokuRuntime.startPressed = false; if (shouldStart) { sudokuRuntime.start(sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex))); startSudokuTimer() } draw() },
+  startGame: () => { sudokuRuntime.start(sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex))); startSudokuTimer(); draw() },
+  restartGame: () => { sudokuRuntime.start(sudokuLogic.gameFromPuzzle(sudokuLogic.generatePuzzle(sudokuRuntime.difficultyIndex))); startSudokuTimer(); draw() },
   pressDifficultyArrow: side => { sudokuRuntime.pressedArrow = side; sudokuRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 }; draw() },
   releaseDifficultyArrow: direction => { const side = sudokuRuntime.pressedArrow; sudokuRuntime.pressedArrow = ''; const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) { animateSudokuArrowRelease(side); animateSudokuDifficulty(next) } else animateSudokuBoundaryShake(side) },
   changeDifficulty: direction => { const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) animateSudokuDifficulty(next) },
@@ -396,7 +396,7 @@ wx.onTouchEnd(event => {
     const index = Math.floor((y - 276) / 98)
     const game = y >= 276 && index >= 0 && index < gameRegistry.listGames().length ? gameRegistry.listGames()[index] : null
     if (game && y <= 352 + index * 98) {
-      if (game.id === 'sudoku') { sudokuRuntime.mode = 'menu'; sudokuRuntime.game = sudokuLogic.gameFromPuzzle(); stopSudokuTimer() }
+      if (game.id === 'sudoku') { sudokuRuntime.reset(); stopSudokuTimer() }
       enterGame(game.id)
       return
     }

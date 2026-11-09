@@ -24,4 +24,39 @@ function createSudokuController(deps) {
   return controllerModule.createController(deps)
 }
 
-module.exports = { createSudokuGame, createSudokuRuntime, createSudokuController }
+function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, drawDifficultySelector, drawChevron }) {
+  return function drawBoard() {
+    view.drawPageHeader({ elapsed: runtime.elapsedSeconds })
+    const layout = view.layout()
+    runtime.cellSize = layout.cellSize
+    runtime.boardX = layout.boardX
+    runtime.boardY = layout.boardY
+    view.drawControls({ width, height, canUndo: runtime.game.history.length > 0, selected: runtime.game.selected, won: runtime.game.won })
+    const filterY = runtime.boardY - 35
+    view.drawFilterCaption({ y: filterY - 38 })
+    view.drawFilterCards({ boardX: runtime.boardX, filterY, size: runtime.cellSize, filter: runtime.game.filter, values: runtime.game.values })
+    const selected = runtime.game.selected
+    const activeDigit = runtime.game.filter === null && selected !== null ? runtime.game.values[selected] : 0
+    const errors = logic.conflicts(runtime.game.values)
+    const searchMode = runtime.game.filter !== null
+    for (let row = 0; row < 9; row += 1) for (let col = 0; col < 9; col += 1) {
+      const index = row * 9 + col
+      const x = runtime.boardX + col * runtime.cellSize
+      const y = runtime.boardY + row * runtime.cellSize
+      const possible = runtime.game.filter !== null && !runtime.game.values[index] && Boolean(logic.availableCandidates(runtime.game.values, index, runtime.game.exclusions) & (1 << runtime.game.filter))
+      const related = !searchMode && selected !== null && logic.PEERS[selected].includes(index)
+      const same = !searchMode && activeDigit && runtime.game.values[index] === activeDigit
+      view.drawCell({ index, x, y, size: runtime.cellSize, value: runtime.game.values[index], given: runtime.game.givens[index], notes: runtime.game.notes[index], selected, activeDigit, searchMode, possible, related, same, error: errors.has(index) })
+    }
+    view.drawGridBorders({ boardX: runtime.boardX, boardY: runtime.boardY, size: runtime.cellSize, boardWidth: layout.width })
+    view.drawKeypad({ boardX: runtime.boardX, boardY: runtime.boardY, size: runtime.cellSize, boardWidth: layout.width, noteMode: runtime.game.noteMode })
+    view.drawHint({ filter: runtime.game.filter })
+    if (runtime.game.won) {
+      view.drawResultPanel({ width, height })
+      drawDifficultySelector({ width, height, index: runtime.difficultyIndex, from: runtime.difficultyFrom, to: runtime.difficultyTo, progress: runtime.difficultyProgress, drawChevron })
+    }
+    view.drawCelebration({ event: runtime.celebration, startedAt: runtime.celebrationAt, width, height, boardX: runtime.boardX, boardY: runtime.boardY, cellSize: runtime.cellSize })
+  }
+}
+
+module.exports = { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer }

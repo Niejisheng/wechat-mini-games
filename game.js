@@ -6,7 +6,7 @@ const { createMinesweeperView } = require('./src/games/minesweeper/view')
 const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
-const { createSudokuGame, createSudokuRuntime, createSudokuController } = require('./src/games/sudoku/game')
+const { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer } = require('./src/games/sudoku/game')
 const { touchPosition } = require('./src/shared/input')
 const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
 const { roundRect, text } = canvasTools
@@ -288,6 +288,8 @@ function animateSudokuDifficulty(nextIndex) {
   }
   setTimeout(frame, 16)
 }
+
+const drawSudokuBoard = createSudokuBoardRenderer({ ctx, runtime: sudokuRuntime, view: sudokuView, logic: sudokuLogic, width: W, height: H, drawDifficultySelector: options => minesweeperView.drawResultDifficultySelector(options), drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
 
 function startSudokuTimer() {
   sudokuRuntime.startTimer(() => screen === 'sudoku', draw)

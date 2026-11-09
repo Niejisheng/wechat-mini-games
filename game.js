@@ -602,18 +602,6 @@ function startWinCelebration() { minesweeperRuntime.beginWinCelebration(draw, ()
 
 function startReplayPlayback() { minesweeperRuntime.beginReplay(draw, () => { if (!minesweeperRuntime.revealAnimationRunning) { minesweeperRuntime.revealAnimationRunning = true; animateRevealEffects() } }) }
 
-function animateReplayPlayback() { minesweeperRuntime.beginReplay(draw, () => animateRevealEffects()) }
-
-function animateWinCelebration() {
-  if (!minesweeperRuntime.winCelebration) return
-  draw()
-  if (Date.now() - minesweeperRuntime.winCelebration.at < 3600) setTimeout(animateWinCelebration, 16)
-  else {
-    minesweeperRuntime.winCelebrationRunning = false
-    draw()
-    if (minesweeperRuntime.initialBoard && minesweeperRuntime.clickHistory.length) startReplayPlayback()
-  }
-}
 
 function drawWinCelebration() {
   minesweeperView.drawWinCelebration({ startedAt: minesweeperRuntime.winCelebration && minesweeperRuntime.winCelebration.at, width: W, height: H })

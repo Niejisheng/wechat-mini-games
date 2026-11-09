@@ -245,7 +245,7 @@ function animateSudokuDifficulty(nextIndex) {
   setTimeout(frame, 16)
 }
 
-const drawSudokuBoard = createSudokuBoardRenderer({ ctx, runtime: sudokuRuntime, view: sudokuView, logic: sudokuLogic, width: W, height: H, drawDifficultySelector: options => minesweeperView.drawResultDifficultySelector(options), drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
+const drawSudokuBoard = createSudokuBoardRenderer({ ctx, runtime: sudokuRuntime, view: sudokuView, logic: sudokuLogic, width: W, height: H, difficulties, drawDifficultySelector: options => minesweeperView.drawResultDifficultySelector(options), drawChevron: (x, y, direction) => drawSudokuChevron(x, y, direction) })
 
 function startSudokuTimer() {
   sudokuRuntime.startTimer(() => screen === 'sudoku', draw)

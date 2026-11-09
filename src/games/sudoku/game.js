@@ -24,7 +24,7 @@ function createSudokuController(deps) {
   return controllerModule.createController(deps)
 }
 
-function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, drawDifficultySelector, drawChevron }) {
+function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, difficulties, drawDifficultySelector, drawChevron }) {
   return function drawBoard() {
     view.drawPageHeader({ elapsed: runtime.elapsedSeconds })
     const layout = view.layout()
@@ -53,7 +53,7 @@ function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, d
     view.drawHint({ filter: runtime.game.filter })
     if (runtime.game.won) {
       view.drawResultPanel({ width, height })
-      drawDifficultySelector({ width, height, index: runtime.difficultyIndex, from: runtime.difficultyFrom, to: runtime.difficultyTo, progress: runtime.difficultyProgress, drawChevron })
+      drawDifficultySelector({ width, height, difficulties, index: runtime.difficultyIndex, from: runtime.difficultyFrom, to: runtime.difficultyTo, progress: runtime.difficultyProgress, drawChevron })
     }
     view.drawCelebration({ event: runtime.celebration, startedAt: runtime.celebrationAt, width, height, boardX: runtime.boardX, boardY: runtime.boardY, cellSize: runtime.cellSize })
   }

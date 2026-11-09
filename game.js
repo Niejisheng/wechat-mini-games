@@ -285,10 +285,10 @@ const minesweeperInput = createMinesweeperController({
   pressDifficultyArrow: side => { minesweeperRuntime.pressedArrow = side; minesweeperRuntime.arrowEffect = { side, phase: 'press', progress: 0, rotation: 0 } },
   pressStart: () => { minesweeperRuntime.startPressed = true; minesweeperRuntime.startPressAt = Date.now(); minesweeperRuntime.startLongPress = false; draw(); setTimeout(() => { if (minesweeperRuntime.startPressed && Date.now() - minesweeperRuntime.startPressAt >= 450) minesweeperRuntime.startLongPress = true }, 450) },
   isStartPressed: () => minesweeperRuntime.startPressed,
-  releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; initBoard(); draw() } },
+  releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns); draw() } },
   leaveGame: () => { minesweeperRuntime.resetSession(); leaveCurrentGame() },
   openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
-  restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) replayBoard(); else { initBoard(); draw() } },
+  restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) { minesweeperRuntime.resetForReplay(); draw() } else { minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns); draw() } },
   releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
   releaseDifficultyArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
   clearPressedArrow: () => { minesweeperRuntime.pressedArrow = '' }
@@ -397,7 +397,7 @@ function revealCell(r, c) {
     return
   }
   if (cell.mine) {
-    triggerFailureSequence(r, c)
+    minesweeperRuntime.beginFailure(r, c, draw, playFailureClick)
     return
   }
   if (!minesweeperRuntime.startedAt) {
@@ -502,15 +502,6 @@ function playFailureClick() {
   }
 }
 
-function triggerFailureSequence(r, c) { minesweeperRuntime.beginFailure(r, c, draw, playFailureClick) }
-
-function advanceFailureSequence() { minesweeperRuntime.advanceFailure(draw) }
-
-function animateFailureFrame() { minesweeperRuntime.animateFailure(draw) }
-
-function initBoard() { minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns) }
-
-function replayBoard() { minesweeperRuntime.resetForReplay(); draw() }
 
 function neighbors(r, c) { return minesweeperRuntime.neighbors(r, c, boardColumns) }
 function drawGameBoard() { drawMinesweeperBoard() }

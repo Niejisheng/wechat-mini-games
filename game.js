@@ -599,53 +599,11 @@ function animateFailureFrame() {
   else advanceFailureSequence()
 }
 
-function initBoard() {
-  minesweeperRuntime.stopTimer()
-  const difficulty = difficulties[minesweeperRuntime.difficultyIndex]
-  minesweeperRuntime.boardRows = difficulty.rows
-  minesweeperRuntime.mineCount = difficulty.mines
-  minesweeperRuntime.failureSequence = null
-  minesweeperRuntime.explodedMine = null
-  minesweeperRuntime.winCelebration = null
-  minesweeperRuntime.winCelebrationRunning = false
-  minesweeperRuntime.revealEffects = []
-  minesweeperRuntime.revealAnimationRunning = false
-  minesweeperRuntime.status = 'playing'
-  minesweeperRuntime.boardCommitted = false
-  minesweeperRuntime.initialBoard = null
-  minesweeperRuntime.finalBoard = null
-  minesweeperRuntime.clickHistory = []
-  minesweeperRuntime.replay = null
-  minesweeperRuntime.startedAt = 0
-  minesweeperRuntime.elapsedSeconds = 0
-  minesweeperRuntime.collapseEffects = []
-  minesweeperRuntime.flagAnimation = null
-  minesweeperRuntime.numberFeedback = null
-  minesweeperRuntime.board = minesweeperLogic.createBoard(minesweeperRuntime.difficultyIndex)
-}
+function initBoard() { minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns) }
 
-function replayBoard() {
-  minesweeperRuntime.stopTimer()
-  minesweeperRuntime.failureSequence = null
-  minesweeperRuntime.explodedMine = null
-  minesweeperRuntime.winCelebration = null
-  minesweeperRuntime.winCelebrationRunning = false
-  minesweeperRuntime.revealEffects = []
-  minesweeperRuntime.revealAnimationRunning = false
-  minesweeperRuntime.status = 'playing'
-  minesweeperRuntime.boardCommitted = true
-  minesweeperRuntime.clickHistory = []
-  minesweeperRuntime.replay = null
-  minesweeperRuntime.startedAt = 0
-  minesweeperRuntime.elapsedSeconds = 0
-  minesweeperRuntime.collapseEffects = []
-  minesweeperRuntime.numberFeedback = null
-  minesweeperRuntime.flagAnimation = null
-  minesweeperRuntime.board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
-  draw()
-}
+function replayBoard() { minesweeperRuntime.resetForReplay(); draw() }
 
-function neighbors(r, c) { return minesweeperLogic.neighbors(r, c, minesweeperRuntime.boardRows, boardColumns) }
+function neighbors(r, c) { return minesweeperRuntime.neighbors(r, c, boardColumns) }
 function drawGameBoard() {
   const replayLayout = minesweeperRuntime.status === 'won' && minesweeperRuntime.difficultyIndex >= 2
   const maxWidth = replayLayout ? Math.min(W - 36, 330) : Math.min(W - 36, 360)

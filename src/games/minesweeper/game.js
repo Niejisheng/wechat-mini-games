@@ -13,6 +13,49 @@ function createMinesweeperRuntime(logic) {
     runtime.flagAnimation = null
     runtime.collapseEffects = []
   }
+  runtime.initBoard = (difficulty, columns) => {
+    runtime.stopTimer()
+    runtime.boardRows = difficulty.rows
+    runtime.mineCount = difficulty.mines
+    runtime.failureSequence = null
+    runtime.explodedMine = null
+    runtime.winCelebration = null
+    runtime.winCelebrationRunning = false
+    runtime.revealEffects = []
+    runtime.revealAnimationRunning = false
+    runtime.status = 'playing'
+    runtime.boardCommitted = false
+    runtime.initialBoard = null
+    runtime.finalBoard = null
+    runtime.clickHistory = []
+    runtime.replay = null
+    runtime.startedAt = 0
+    runtime.elapsedSeconds = 0
+    runtime.collapseEffects = []
+    runtime.flagAnimation = null
+    runtime.numberFeedback = null
+    runtime.board = logic.createBoard(runtime.difficultyIndex)
+  }
+  runtime.resetForReplay = () => {
+    runtime.stopTimer()
+    runtime.failureSequence = null
+    runtime.explodedMine = null
+    runtime.winCelebration = null
+    runtime.winCelebrationRunning = false
+    runtime.revealEffects = []
+    runtime.revealAnimationRunning = false
+    runtime.status = 'playing'
+    runtime.boardCommitted = true
+    runtime.clickHistory = []
+    runtime.replay = null
+    runtime.startedAt = 0
+    runtime.elapsedSeconds = 0
+    runtime.collapseEffects = []
+    runtime.numberFeedback = null
+    runtime.flagAnimation = null
+    runtime.board.forEach(row => row.forEach(cell => { cell.open = false; cell.flag = false }))
+  }
+  runtime.neighbors = (row, col, columns) => logic.neighbors(row, col, runtime.boardRows, columns)
   runtime.startTimer = (isActive, draw) => { runtime.stopTimer(); const tick = () => { if (!isActive() || runtime.status !== 'playing' || !runtime.startedAt) return; runtime.elapsedSeconds = Math.floor((Date.now() - runtime.startedAt) / 1000); draw(); runtime.timer = setTimeout(tick, 1000) }; tick() }
   return runtime
 }

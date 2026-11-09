@@ -59,4 +59,25 @@ function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, d
   }
 }
 
-module.exports = { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer }
+function createSudokuCelebrationPlayer({ runtime, logic, draw }) {
+  return function play(event) {
+    if (!event) return
+    runtime.celebration = event
+    runtime.celebrationAt = Date.now()
+    draw()
+    const duration = event.win ? 2600 : event.digits.length ? 1700 : 1200
+    setTimeout(() => {
+      runtime.game = logic.reducer(runtime.game, { type: 'clear-event', id: event.id })
+      if (runtime.game.event) play(runtime.game.event)
+      else { runtime.celebration = null; runtime.celebrationAt = 0; draw() }
+    }, duration)
+    const frame = () => {
+      if (runtime.celebration !== event) return
+      draw()
+      if (Date.now() - runtime.celebrationAt < duration) setTimeout(frame, 33)
+    }
+    setTimeout(frame, 33)
+  }
+}
+
+module.exports = { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer, createSudokuCelebrationPlayer }

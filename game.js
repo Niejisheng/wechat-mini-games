@@ -6,7 +6,7 @@ const { createMinesweeperView } = require('./src/games/minesweeper/view')
 const { createMinesweeperGame, createMinesweeperRuntime, createMinesweeperController, createMinesweeperBoardRenderer } = require('./src/games/minesweeper/game')
 const sudokuLogic = require('./src/games/sudoku/logic')
 const { createSudokuView } = require('./src/games/sudoku/view')
-const { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer } = require('./src/games/sudoku/game')
+const { createSudokuGame, createSudokuRuntime, createSudokuController, createSudokuBoardRenderer, createSudokuCelebrationPlayer } = require('./src/games/sudoku/game')
 const { touchPosition } = require('./src/shared/input')
 const canvasTools = require('./src/shared/canvas').createCanvasTools(ctx)
 const { roundRect, text } = canvasTools
@@ -171,24 +171,7 @@ function drawSudoku() {
   drawSudokuBoard()
 }
 
-function playSudokuCelebration(event) {
-  if (!event) return
-  sudokuRuntime.celebration = event
-  sudokuRuntime.celebrationAt = Date.now()
-  draw()
-  const duration = event.win ? 2600 : event.digits.length ? 1700 : 1200
-  setTimeout(() => {
-    sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'clear-event', id: event.id })
-    if (sudokuRuntime.game.event) playSudokuCelebration(sudokuRuntime.game.event)
-    else { sudokuRuntime.celebration = null; sudokuRuntime.celebrationAt = 0; draw() }
-  }, duration)
-  const frame = () => {
-    if (sudokuRuntime.celebration !== event) return
-    draw()
-    if ((Date.now() - sudokuRuntime.celebrationAt) < duration) setTimeout(frame, 33)
-  }
-  setTimeout(frame, 33)
-}
+const playSudokuCelebration = createSudokuCelebrationPlayer({ runtime: sudokuRuntime, logic: sudokuLogic, draw })
 
 function drawSudokuMenu() {
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)

@@ -12,7 +12,13 @@ function createSudokuRuntime(logic) {
     runtime.celebration = null
     runtime.celebrationAt = 0
   }
-  runtime.start = puzzle => { runtime.game = puzzle; runtime.mode = 'playing'; runtime.elapsedSeconds = 0 }
+  runtime.start = puzzle => {
+    runtime.game = puzzle
+    runtime.mode = 'playing'
+    runtime.elapsedSeconds = 0
+    runtime.celebration = null
+    runtime.result = null
+  }
   return runtime
 }
 
@@ -31,10 +37,15 @@ function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, d
     runtime.cellSize = layout.cellSize
     runtime.boardX = layout.boardX
     runtime.boardY = layout.boardY
-    view.drawControls({ width, height, canUndo: runtime.game.history.length > 0, selected: runtime.game.selected, won: runtime.game.won })
+    const rewards = runtime.rewards
+    view.drawControls({ width, height, game: runtime.game, rewards })
     const filterY = runtime.boardY - 35
-    view.drawFilterCaption({ y: filterY - 38 })
-    view.drawFilterCards({ boardX: runtime.boardX, filterY, size: runtime.cellSize, filter: runtime.game.filter, values: runtime.game.values })
+    if (rewards.searchReady) {
+      view.drawFilterCaption({ y: filterY - 34 })
+      view.drawFilterCards({ boardX: runtime.boardX, filterY, size: runtime.cellSize, filter: runtime.game.filter, values: runtime.game.values })
+    } else {
+      view.drawLockedSearch(filterY, rewards.searchRemaining)
+    }
     const selected = runtime.game.selected
     const activeDigit = runtime.game.filter === null && selected !== null ? runtime.game.values[selected] : 0
     const errors = logic.conflicts(runtime.game.values)
@@ -50,9 +61,9 @@ function createSudokuBoardRenderer({ ctx, runtime, view, logic, width, height, d
     }
     view.drawGridBorders({ boardX: runtime.boardX, boardY: runtime.boardY, size: runtime.cellSize, boardWidth: layout.width })
     view.drawKeypad({ boardX: runtime.boardX, boardY: runtime.boardY, size: runtime.cellSize, boardWidth: layout.width, noteMode: runtime.game.noteMode })
-    view.drawHint({ filter: runtime.game.filter })
+    if (rewards.searchReady) view.drawHint({ filter: runtime.game.filter })
     if (runtime.game.won) {
-      view.drawResultPanel({ width, height })
+      view.drawResultPanel({ width, height, result: runtime.result })
       drawDifficultySelector({ width, height, difficulties, index: runtime.difficultyIndex, from: runtime.difficultyFrom, to: runtime.difficultyTo, progress: runtime.difficultyProgress, drawChevron })
     }
     view.drawCelebration({ event: runtime.celebration, startedAt: runtime.celebrationAt, width, height, boardX: runtime.boardX, boardY: runtime.boardY, cellSize: runtime.cellSize })
@@ -67,6 +78,7 @@ function createSudokuCelebrationPlayer({ runtime, logic, draw }) {
     draw()
     const duration = event.win ? 2600 : event.digits.length ? 1700 : 1200
     setTimeout(() => {
+      if (runtime.celebration !== event) return
       runtime.game = logic.reducer(runtime.game, { type: 'clear-event', id: event.id })
       if (runtime.game.event) play(runtime.game.event)
       else { runtime.celebration = null; runtime.celebrationAt = 0; draw() }

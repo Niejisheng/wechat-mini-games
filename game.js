@@ -25,7 +25,10 @@ let currentSession = null
 const minesweeperRuntime = createMinesweeperRuntime(minesweeperLogic)
 const boardColumns = minesweeperLogic.BOARD_COLUMNS
 
+const { createRewards } = require('./src/games/sudoku/rewards')
 const sudokuRuntime = createSudokuRuntime(sudokuLogic)
+sudokuRuntime.rewards = createRewards(wx)
+if (wx.onHide) wx.onHide(sudokuRuntime.rewards.save)
 let gameSessions = null
 const sudokuView = createSudokuView({ ctx, getWidth: () => W, getHeight: () => H, roundRect, text, logic: sudokuLogic })
 // 难度从低到高，左右箭头分别对应上一级和下一级
@@ -288,7 +291,8 @@ const minesweeperInput = createMinesweeperController({
   isStartPressed: () => minesweeperRuntime.startPressed,
   releaseStart: now => { const shouldStart = now - minesweeperRuntime.startPressAt < 450 && !minesweeperRuntime.startLongPress; minesweeperRuntime.startPressed = false; draw(); if (shouldStart) { minesweeperRuntime.active = true; minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns); draw() } },
   leaveGame: () => { minesweeperRuntime.resetSession(); leaveCurrentGame() },
-  openGame: () => { screen = 'minesweeper'; draw() }, leaveMenu: () => { screen = 'home'; draw() },
+  openGame: () => { screen = 'minesweeper'; draw() },
+  leaveMenu: leaveCurrentGame,
   restartResult: x => { if (minesweeperRuntime.status === 'lost' && x >= W / 2) { minesweeperRuntime.resetForReplay(); draw() } else { minesweeperRuntime.initBoard(difficulties[minesweeperRuntime.difficultyIndex], boardColumns); draw() } },
   releaseResultArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
   releaseDifficultyArrow: direction => { const releasedSide = minesweeperRuntime.pressedArrow; minesweeperRuntime.pressedArrow = ''; const nextIndex = Math.max(0, Math.min(difficulties.length - 1, minesweeperRuntime.difficultyIndex + direction)); if (nextIndex !== minesweeperRuntime.difficultyIndex) { animateArrowRelease(releasedSide); animateDifficulty(nextIndex) } else animateBoundaryShake(releasedSide) },
@@ -308,13 +312,31 @@ const sudokuInput = createSudokuController({
   releaseDifficultyArrow: direction => { const side = sudokuRuntime.pressedArrow; sudokuRuntime.pressedArrow = ''; const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) { animateSudokuArrowRelease(side); animateSudokuDifficulty(next) } else animateSudokuBoundaryShake(side) },
   changeDifficulty: direction => { const next = Math.max(0, Math.min(difficulties.length - 1, sudokuRuntime.difficultyIndex + direction)); if (next !== sudokuRuntime.difficultyIndex) animateSudokuDifficulty(next) },
   toggleNoteMode: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'note-mode' }); draw() },
-  filter: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'filter', digit }); draw() },
+  filter: digit => {
+    if (!sudokuRuntime.rewards.searchReady) return
+    sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'filter', digit })
+    draw()
+  },
   select: index => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'select', index }); draw() },
-  input: digit => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: sudokuRuntime.game.noteMode ? 'note' : 'input', digit }); if (sudokuRuntime.game.won) { sudokuRuntime.mode = 'result'; stopSudokuTimer() } if (sudokuRuntime.game.event) playSudokuCelebration(sudokuRuntime.game.event); else draw() },
+  input: digit => {
+    const previous = sudokuRuntime.game
+    const game = sudokuLogic.reducer(previous, { type: previous.noteMode ? 'note' : 'input', digit })
+    sudokuRuntime.game = game
+    if (game.won && !previous.won) {
+      sudokuRuntime.result = sudokuRuntime.rewards.complete(game.givens, sudokuRuntime.difficultyIndex)
+      sudokuRuntime.mode = 'result'
+      stopSudokuTimer()
+    }
+    if (game.event && game.event !== sudokuRuntime.celebration) playSudokuCelebration(game.event)
+    else draw()
+  },
   exclude: (index, digit) => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'exclude', index, digit }); draw() },
   undo: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'undo' }); draw() },
   erase: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'erase' }); draw() },
-  autoNotes: () => { sudokuRuntime.game = sudokuLogic.reducer(sudokuRuntime.game, { type: 'auto-notes' }); draw() }
+  autoNotes: () => {
+    sudokuRuntime.game = sudokuRuntime.rewards.autoNotes(sudokuRuntime.game, sudokuLogic.reducer)
+    draw()
+  }
 })
 
 gameRegistry.setGameFactory('minesweeper', () => createMinesweeperGame({ draw: drawMinesweeper, controller: minesweeperInput, exit: () => minesweeperRuntime.stopTimer() }))

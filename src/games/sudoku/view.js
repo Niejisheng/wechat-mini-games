@@ -1,12 +1,14 @@
+const { toolbar } = require('./controls')
+
 function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) {
   function layout() {
-    const width = Math.min(getWidth() - 24, 360)
+    const width = Math.min(getWidth() - 24, 360, getHeight() - 332)
     const cellSize = width / 9
     const boardX = (getWidth() - width) / 2
     const boardHeight = cellSize * 9
     const centeredBoardY = (getHeight() - boardHeight) / 2 + 8
     const minimumBoardY = 210
-    const maximumBoardY = Math.max(minimumBoardY, getHeight() - boardHeight - 96)
+    const maximumBoardY = getHeight() - boardHeight - 122
     return { width, cellSize, boardX, boardY: Math.max(minimumBoardY, Math.min(maximumBoardY, centeredBoardY)) }
   }
 
@@ -40,7 +42,7 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
   }
 
   function drawKeypad({ boardX, boardY, size, boardWidth, noteMode }) {
-    const keypadY = Math.min(getHeight() - 48, boardY + boardWidth + 56)
+    const keypadY = boardY + boardWidth + 27
     logic.DIGITS.forEach((digit, index) => {
       const x = boardX + (index + 0.5) * size
       roundRect(x - size * 0.32, keypadY - 18, size * 0.64, 36, 12, noteMode ? '#f0f3f7' : '#ffffff', '#d7dfe5')
@@ -90,21 +92,21 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
     text(formatTime(elapsed), getWidth() - 22, 128, 13, '#8293a8', 'right')
   }
 
-  function drawControls({ width, height, canUndo, selected, won }) {
-    const y = height - 84
-    const buttons = [
-      { key: 'auto-notes', label: '自动笔记', width: 64 },
-      { key: 'erase', label: '擦除', width: 48 },
-      { key: 'undo', label: '撤销', width: 48 }
-    ]
-    let right = width - 24
-    buttons.slice().reverse().forEach(button => {
-      const x = right - button.width
-      const enabled = !won && (button.key === 'auto-notes' || button.key === 'undo' ? (button.key === 'auto-notes' || canUndo) : selected !== null)
-      roundRect(x, y - 15, button.width, 30, 10, enabled ? '#ffffff' : '#eef2f4', enabled ? '#d3dde5' : '#e2e7eb')
-      text(button.label, x + button.width / 2, y + 1, 11, enabled ? '#66788a' : '#b1bbc3', 'center')
-      right = x - 7
+  function drawControls({ width, height, game, rewards }) {
+    const autoLabel = rewards.noteWinsRemaining
+      ? `自动笔记 · 再过 ${rewards.noteWinsRemaining} 局`
+      : `自动笔记 · 余 ${rewards.notesRemaining} 次`
+    const labels = { undo: '撤销', erase: '擦除', toggleNoteMode: game.noteMode ? '笔记中' : '笔记', autoNotes: autoLabel }
+    const enabled = { undo: game.history.length > 0, erase: game.selected !== null && !game.givens[game.selected], toggleNoteMode: true, autoNotes: rewards.notesRemaining > 0 }
+    toolbar(width, height).forEach(({ key, x, y, w, h }) => {
+      const active = key === 'toggleNoteMode' && game.noteMode
+      roundRect(x, y + 3, w, h - 6, 10, active ? '#52659a' : enabled[key] ? '#ffffff' : '#edf0f4', '#d3dde5')
+      text(labels[key], x + w / 2, y + h / 2, 12, active ? '#ffffff' : enabled[key] ? '#536779' : '#73808d', 'center')
     })
+  }
+
+  function drawLockedSearch(y, remaining) {
+    text(`寻找数字 · 再完成 ${remaining} 局解锁`, getWidth() / 2, y, 14, '#637391', 'center')
   }
 
   function drawFilterCaption({ y }) {
@@ -117,23 +119,20 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
     text(filter ? '淡橙色为候选位置 · 长按候选格排除或恢复' : '点击上方数字寻找候选位置', getWidth() / 2, getHeight() - 16, 10, '#a4afb9', 'center')
   }
 
-  function drawResultPanel({ width, height }) {
-    const panelTop = height * 0.745
-    ctx.save()
-    ctx.fillStyle = 'rgba(247, 249, 251, 0.96)'
-    ctx.beginPath()
-    ctx.moveTo(0, panelTop + 18)
-    ctx.quadraticCurveTo(0, panelTop, 18, panelTop)
-    ctx.lineTo(width - 18, panelTop)
-    ctx.quadraticCurveTo(width, panelTop, width, panelTop + 18)
-    ctx.lineTo(width, height)
-    ctx.lineTo(0, height)
-    ctx.closePath()
-    ctx.fill()
-    ctx.restore()
-    text('恭喜通关', width / 2, height * 0.765, 22, '#258c55', 'center')
-    roundRect(44, height * 0.79, width - 88, 52, 26, '#8293cf')
-    text('新游戏', width / 2, height * 0.79 + 26, 16, '#ffffff', 'center')
+  function drawResultPanel({ width, height, result }) {
+    const top = height * 0.79 - 144
+    ctx.fillStyle = '#f7f9fb'
+    ctx.fillRect(0, top, width, height - top)
+    roundRect(12, top, width - 24, 132, 18, '#293e80')
+    const center = width / 2
+    text('数独通关', center, top + 22, 16, '#faf4df', 'center')
+    const progress = Math.min(1, (Date.now() - result.at) / 750)
+    const total = result.points - result.earned + Math.round(result.earned * progress)
+    text(`+${result.earned} 分`, center, top + 55, 30, '#ffd178', 'center')
+    text(`成长积分  ${total}`, center, top + 83, 14, '#ffffff', 'center')
+    text(result.message, center, top + 109, 14, '#ffdfa0', 'center')
+    roundRect(44, height * 0.79, width - 88, 46, 23, '#52659a')
+    text('再来一局', center, height * 0.79 + 23, 16, '#ffffff', 'center')
   }
 
   function drawCelebration({ event, startedAt, width, height, boardX, boardY, cellSize }) {
@@ -219,7 +218,7 @@ function createSudokuView({ ctx, getWidth, getHeight, roundRect, text, logic }) 
     ctx.restore()
   }
 
-  return { layout, formatTime, drawSearchDigit, drawClock, drawCell, drawKeypad, drawFilterCards, drawGridBorders, drawPageHeader, drawControls, drawFilterCaption, drawHint, drawResultPanel, drawCelebration }
+  return { layout, formatTime, drawSearchDigit, drawClock, drawCell, drawKeypad, drawFilterCards, drawGridBorders, drawPageHeader, drawControls, drawFilterCaption, drawLockedSearch, drawHint, drawResultPanel, drawCelebration }
 }
 
 module.exports = { createSudokuView }
